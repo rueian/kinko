@@ -25,10 +25,10 @@ import (
 
 // AssetSpec defines the desired state of Asset
 type AssetSpec struct {
-	KMSProvider           string `json:"kmsProvider"`
-	KMSKeyEncryptionKeyID string `json:"kmsKeyEncryptionKeyId"`
-	DataEncryptionDetails string `json:"dataEncryptionDetails"`
-	DataEncrypted         string `json:"dataEncrypted"`
+	Provider       string `json:"provider"`
+	ProviderParams string `json:"providerParams"`
+	SealingDetail  string `json:"sealingDetail"`
+	SealedData     string `json:"sealedData"`
 }
 
 // AssetStatus defines the observed state of Asset

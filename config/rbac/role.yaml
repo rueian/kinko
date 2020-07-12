@@ -6,6 +6,16 @@ metadata:
   creationTimestamp: null
   name: manager-role
 rules:
+- resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - seals.kinko.dev
   resources:

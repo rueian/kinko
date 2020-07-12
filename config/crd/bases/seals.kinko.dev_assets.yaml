@@ -36,19 +36,19 @@ spec:
         spec:
           description: AssetSpec defines the desired state of Asset
           properties:
-            dataEncrypted:
+            provider:
               type: string
-            dataEncryptionDetails:
+            providerParams:
               type: string
-            kmsKeyEncryptionKeyId:
+            sealedData:
               type: string
-            kmsProvider:
+            sealingDetail:
               type: string
           required:
-          - dataEncrypted
-          - dataEncryptionDetails
-          - kmsKeyEncryptionKeyId
-          - kmsProvider
+          - provider
+          - providerParams
+          - sealedData
+          - sealingDetail
           type: object
         status:
           description: AssetStatus defines the observed state of Asset

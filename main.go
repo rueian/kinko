@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
+	"github.com/rueian/kinko/kms"
 	"os"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -67,10 +69,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	providers, err := kms.Providers(context.Background())
+
 	if err = (&controllers.AssetReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Asset"),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("Asset"),
+		Scheme:    mgr.GetScheme(),
+		Providers: providers,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Asset")
 		os.Exit(1)
