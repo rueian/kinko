@@ -115,3 +115,9 @@ bundle: manifests
 # Build the bundle image.
 bundle-build:
 	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+
+protoc-gen-go:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go
+
+proto: protoc-gen-go
+	protoc --go_out=. --go_opt=paths=source_relative ./pb/*.proto

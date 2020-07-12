@@ -4,7 +4,9 @@ import (
 	gcpkms "cloud.google.com/go/kms/apiv1"
 	"context"
 	"encoding/json"
+	"github.com/rueian/kinko/pb"
 	gcpkmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type GCPParams struct {
@@ -24,7 +26,7 @@ type GCP struct {
 	client *gcpkms.KeyManagementClient
 }
 
-func (p *GCP) Decrypt(ctx context.Context, params []byte, seal []byte) (detail SealingDetail, err error) {
+func (p *GCP) Decrypt(ctx context.Context, params []byte, seal []byte) (detail *pb.SealingDetail, err error) {
 	ps := GCPParams{}
 	if err = json.Unmarshal(params, &ps); err != nil {
 		return
@@ -49,7 +51,8 @@ func (p *GCP) Decrypt(ctx context.Context, params []byte, seal []byte) (detail S
 		}
 	}
 	if err == nil {
-		err = json.Unmarshal(result, &detail)
+		detail = &pb.SealingDetail{}
+		err = proto.Unmarshal(result, detail)
 	}
 	return
 }

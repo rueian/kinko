@@ -3,27 +3,16 @@ package unseal
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"encoding/base64"
 	"errors"
-	"github.com/rueian/kinko/kms"
+	"github.com/rueian/kinko/pb"
 )
 
-func Decrypt(detail kms.SealingDetail, data []byte) (unsealed []byte, err error) {
-	if detail.Mode != "AES-256-GCM" {
+func Decrypt(detail *pb.SealingDetail, data []byte) (unsealed []byte, err error) {
+	if detail.Mode != pb.SealingMode_AES_256_GCM {
 		return nil, errors.New("currently only support AES-256-GCM")
 	}
 
-	key, err := base64.StdEncoding.DecodeString(detail.DEK)
-	if err != nil {
-		return nil, err
-	}
-
-	iv, err := base64.StdEncoding.DecodeString(detail.IV)
-	if err != nil {
-		return nil, err
-	}
-
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(detail.Dek)
 	if err != nil {
 		return nil, err
 	}
@@ -33,5 +22,5 @@ func Decrypt(detail kms.SealingDetail, data []byte) (unsealed []byte, err error)
 		return nil, err
 	}
 
-	return gcm.Open(nil, iv, data, nil)
+	return gcm.Open(nil, detail.Iv, data, nil)
 }

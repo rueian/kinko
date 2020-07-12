@@ -1,15 +1,12 @@
 package kms
 
-import "context"
+import (
+	"context"
+	"github.com/rueian/kinko/pb"
+)
 
 type Provider interface {
-	Decrypt(ctx context.Context, params []byte, seal []byte) (SealingDetail, error)
-}
-
-type SealingDetail struct {
-	Mode string `json:"mode"`
-	DEK  string `json:"dek"`
-	IV   string `json:"iv"`
+	Decrypt(ctx context.Context, params []byte, seal []byte) (*pb.SealingDetail, error)
 }
 
 func Providers(ctx context.Context) (map[string]Provider, error) {

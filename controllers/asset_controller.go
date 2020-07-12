@@ -19,11 +19,12 @@ package controllers
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"github.com/go-logr/logr"
 	"github.com/rueian/kinko/kms"
+	"github.com/rueian/kinko/pb"
 	"github.com/rueian/kinko/unseal"
+	"google.golang.org/protobuf/proto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -68,7 +69,7 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		return ctrl.Result{Requeue: false}, fmt.Errorf("bad sealing detail: %w", err)
 	}
-	data, err := base64.StdEncoding.DecodeString(asset.Spec.SealedData)
+	sealed, err := base64.StdEncoding.DecodeString(asset.Spec.SealedData)
 	if err != nil {
 		return ctrl.Result{Requeue: false}, fmt.Errorf("bad sealed data: %w", err)
 	}
@@ -92,28 +93,23 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 
 		// unseal the asset
-		unsealed, err := unseal.Decrypt(detail, data)
+		unsealed, err := unseal.Decrypt(detail, sealed)
 		if err != nil {
 			return err
 		}
 
-		stringData := map[string]string{}
-		if err := json.Unmarshal(unsealed, &stringData); err != nil {
+		data := &pb.Secret{}
+		if err := proto.Unmarshal(unsealed, data); err != nil {
 			return err
 		}
 
 		secret.ObjectMeta.Annotations = map[string]string{
 			assetVersionAnnotation: asset.ResourceVersion,
 		}
-		secret.Data = make(map[string][]byte)
+		secret.Data = data.Data
 		secret.Type = "Opaque"
 		if err := ctrl.SetControllerReference(asset, secret, r.Scheme); err != nil {
 			return err
-		}
-		for k, v := range stringData {
-			if bs, err := base64.StdEncoding.DecodeString(v); err == nil {
-				secret.Data[k] = bs
-			}
 		}
 		return nil
 	}); err != nil {
