@@ -27,8 +27,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	secretsv1alpha1 "github.com/rueian/kms-secrets-operator/api/v1alpha1"
-	"github.com/rueian/kms-secrets-operator/controllers"
+	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
+	"github.com/rueian/kinko/controllers"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -40,7 +40,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(secretsv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(sealsv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -60,19 +60,19 @@ func main() {
 		MetricsBindAddress: metricsAddr,
 		Port:               9443,
 		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "84965a97.kms-secrets-operator",
+		LeaderElectionID:   "83be0f29.kinko.dev",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	if err = (&controllers.EncryptedSecretReconciler{
+	if err = (&controllers.AssetReconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("EncryptedSecret"),
+		Log:    ctrl.Log.WithName("controllers").WithName("Asset"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "EncryptedSecret")
+		setupLog.Error(err, "unable to create controller", "controller", "Asset")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

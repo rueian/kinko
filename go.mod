@@ -1,4 +1,4 @@
-module github.com/rueian/kms-secrets-operator
+module github.com/rueian/kinko
 
 go 1.13
 

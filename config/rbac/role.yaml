@@ -7,9 +7,9 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - secrets.kms-secrets-operator
+  - seals.kinko.dev
   resources:
-  - encryptedsecrets
+  - assets
   verbs:
   - create
   - delete
@@ -19,9 +19,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - secrets.kms-secrets-operator
+  - seals.kinko.dev
   resources:
-  - encryptedsecrets/status
+  - assets/status
   verbs:
   - get
   - patch

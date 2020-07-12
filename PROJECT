@@ -1,9 +1,9 @@
-domain: kms-secrets-operator
+domain: kinko.dev
 layout: go.kubebuilder.io/v2
-repo: github.com/rueian/kms-secrets-operator
+repo: github.com/rueian/kinko
 resources:
-- group: secrets
-  kind: EncryptedSecret
+- group: seals
+  kind: Asset
   version: v1alpha1
 version: 3-alpha
 plugins:

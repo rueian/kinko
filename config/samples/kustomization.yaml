@@ -1,3 +1,3 @@
 ## This file is auto-generated, do not modify ##
 resources:
-- secrets_v1alpha1_encryptedsecret.yaml
+- seals_v1alpha1_asset.yaml

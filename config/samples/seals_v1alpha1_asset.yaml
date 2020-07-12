@@ -1,0 +1,7 @@
+apiVersion: seals.kinko.dev/v1alpha1
+kind: Asset
+metadata:
+  name: asset-sample
+spec:
+  # Add fields here
+  foo: bar
