@@ -28,10 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"time"
 
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 var (
@@ -60,28 +60,9 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// try get the target secret
-	target := &corev1.Secret{}
-	if err := r.Get(ctx, req.NamespacedName, target); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return ctrl.Result{}, err
-		}
-	}
-
-	if len(target.Annotations) > 0 {
-		if assetVersion, ok := target.Annotations[assetVersionAnnotation]; ok && assetVersion == asset.ResourceVersion {
-			log.Info("the target secret is latest version, skip.")
-			return ctrl.Result{}, nil
-		}
-	}
-
 	provider, ok := r.Providers[asset.Spec.Provider]
 	if !ok {
 		return ctrl.Result{Requeue: false}, fmt.Errorf("not supported provider: %s", asset.Spec.Provider)
-	}
-	params, err := base64.StdEncoding.DecodeString(asset.Spec.ProviderParams)
-	if err != nil {
-		return ctrl.Result{Requeue: false}, fmt.Errorf("bad provider pararms: %w", err)
 	}
 	seal, err := base64.StdEncoding.DecodeString(asset.Spec.SealingDetail)
 	if err != nil {
@@ -91,28 +72,36 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		return ctrl.Result{Requeue: false}, fmt.Errorf("bad sealed data: %w", err)
 	}
-	detail, err := provider.Decrypt(ctx, params, seal)
-	if err != nil {
-		return ctrl.Result{Requeue: false}, fmt.Errorf("corrupted sealing detail: %w", err)
-	}
-
-	// unseal the asset
-	unsealed, err := unseal.Decrypt(detail, data)
-	if err != nil {
-		return ctrl.Result{Requeue: false}, fmt.Errorf("corrupted sealed data: %w", err)
-	}
-
-	stringData := map[string]string{}
-	if err := json.Unmarshal(unsealed, &stringData); err != nil {
-		return ctrl.Result{Requeue: false}, fmt.Errorf("bad sealed data: %w", err)
-	}
 
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 		Name:      asset.Name,
 		Namespace: asset.Namespace,
 	}}
-	if res, err := ctrl.CreateOrUpdate(ctx, r, secret, func() error {
+	if _, err := ctrl.CreateOrUpdate(ctx, r, secret, func() error {
+		if len(secret.Annotations) > 0 {
+			if assetVersion, ok := secret.Annotations[assetVersionAnnotation]; ok && assetVersion == asset.ResourceVersion {
+				log.Info("the target secret is latest version, skip.")
+				return nil
+			}
+		}
+
+		detail, err := provider.Decrypt(ctx, []byte(asset.Spec.ProviderParams), seal)
+		if err != nil {
+			return err
+		}
+
+		// unseal the asset
+		unsealed, err := unseal.Decrypt(detail, data)
+		if err != nil {
+			return err
+		}
+
+		stringData := map[string]string{}
+		if err := json.Unmarshal(unsealed, &stringData); err != nil {
+			return err
+		}
+
 		secret.ObjectMeta.Annotations = map[string]string{
 			assetVersionAnnotation: asset.ResourceVersion,
 		}
@@ -128,7 +117,7 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 		return nil
 	}); err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{RequeueAfter: time.Second}, err
 	}
 
 	return ctrl.Result{}, nil
