@@ -18,18 +18,16 @@ package controllers
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
+	"time"
+
 	"github.com/go-logr/logr"
 	"github.com/rueian/kinko/kms"
-	"github.com/rueian/kinko/pb"
 	"github.com/rueian/kinko/unseal"
-	"google.golang.org/protobuf/proto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -65,14 +63,6 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if !ok {
 		return ctrl.Result{Requeue: false}, fmt.Errorf("not supported provider: %s", asset.Spec.Provider)
 	}
-	seal, err := base64.StdEncoding.DecodeString(asset.Spec.SealingDetail)
-	if err != nil {
-		return ctrl.Result{Requeue: false}, fmt.Errorf("bad sealing detail: %w", err)
-	}
-	sealed, err := base64.StdEncoding.DecodeString(asset.Spec.SealedData)
-	if err != nil {
-		return ctrl.Result{Requeue: false}, fmt.Errorf("bad sealed data: %w", err)
-	}
 
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
@@ -87,31 +77,27 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 		}
 
-		detail, err := provider.Decrypt(ctx, []byte(asset.Spec.ProviderParams), seal)
+		detail, err := provider.Decrypt(ctx, []byte(asset.Spec.ProviderParams), asset.Spec.SealingDetail)
 		if err != nil {
-			return err
-		}
-
-		// unseal the asset
-		unsealed, err := unseal.Decrypt(detail, sealed)
-		if err != nil {
-			return err
-		}
-
-		data := &pb.Secret{}
-		if err := proto.Unmarshal(unsealed, data); err != nil {
 			return err
 		}
 
 		secret.ObjectMeta.Annotations = map[string]string{
 			assetVersionAnnotation: asset.ResourceVersion,
 		}
-		secret.Data = data.Data
 		secret.Type = "Opaque"
-		if err := ctrl.SetControllerReference(asset, secret, r.Scheme); err != nil {
-			return err
+		secret.Data = make(map[string][]byte)
+
+		// unseal the asset
+		for k, v := range asset.Spec.EncryptedData {
+			unsealed, err := unseal.Decrypt(detail, v)
+			if err != nil {
+				return err
+			}
+			secret.Data[k] = unsealed
 		}
-		return nil
+
+		return ctrl.SetControllerReference(asset, secret, r.Scheme)
 	}); err != nil {
 		return ctrl.Result{RequeueAfter: time.Second}, err
 	}

@@ -36,18 +36,22 @@ spec:
         spec:
           description: AssetSpec defines the desired state of Asset
           properties:
+            encryptedData:
+              additionalProperties:
+                format: byte
+                type: string
+              type: object
             provider:
               type: string
             providerParams:
               type: string
-            sealedData:
-              type: string
             sealingDetail:
+              format: byte
               type: string
           required:
+          - encryptedData
           - provider
           - providerParams
-          - sealedData
           - sealingDetail
           type: object
         status:

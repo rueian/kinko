@@ -25,10 +25,10 @@ import (
 
 // AssetSpec defines the desired state of Asset
 type AssetSpec struct {
-	Provider       string `json:"provider"`
-	ProviderParams string `json:"providerParams"`
-	SealingDetail  string `json:"sealingDetail"`
-	SealedData     string `json:"sealedData"`
+	Provider       string            `json:"provider"`
+	ProviderParams string            `json:"providerParams"`
+	SealingDetail  []byte            `json:"sealingDetail"`
+	EncryptedData  map[string][]byte `json:"encryptedData"`
 }
 
 // AssetStatus defines the observed state of Asset

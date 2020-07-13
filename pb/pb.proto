@@ -10,9 +10,4 @@ enum SealingMode {
 message SealingDetail {
   SealingMode mode = 1;
   bytes dek = 2;
-  bytes iv = 3;
-}
-
-message Secret {
-  map<string, bytes> data = 1;
 }

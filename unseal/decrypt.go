@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"errors"
+
 	"github.com/rueian/kinko/pb"
 )
 
@@ -22,5 +23,9 @@ func Decrypt(detail *pb.SealingDetail, data []byte) (unsealed []byte, err error)
 		return nil, err
 	}
 
-	return gcm.Open(nil, detail.Iv, data, nil)
+	if len(data) < gcm.NonceSize() {
+		return nil, errors.New("nonce missing")
+	}
+
+	return gcm.Open(nil, data[:gcm.NonceSize()], data[gcm.NonceSize():], nil)
 }
