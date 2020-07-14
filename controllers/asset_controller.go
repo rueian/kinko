@@ -18,12 +18,11 @@ package controllers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/rueian/kinko/kms"
-	"github.com/rueian/kinko/unseal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -59,11 +58,6 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	provider, ok := r.Providers[asset.Spec.Provider]
-	if !ok {
-		return ctrl.Result{Requeue: false}, fmt.Errorf("not supported provider: %s", asset.Spec.Provider)
-	}
-
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 		Name:      asset.Name,
@@ -77,25 +71,16 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 		}
 
-		detail, err := provider.Decrypt(ctx, []byte(asset.Spec.ProviderParams), asset.Spec.SealingDetail)
-		if err != nil {
-			return err
-		}
-
 		secret.ObjectMeta.Annotations = map[string]string{
 			assetVersionAnnotation: asset.ResourceVersion,
 		}
 		secret.Type = "Opaque"
-		secret.Data = make(map[string][]byte)
 
-		// unseal the asset
-		for k, v := range asset.Spec.EncryptedData {
-			unsealed, err := unseal.Decrypt(detail, v)
-			if err != nil {
-				return err
-			}
-			secret.Data[k] = unsealed
+		data, err := asset.Unseal(ctx, r.Providers)
+		if errors.Is(err, sealsv1alpha1.ErrEmptyParam) || errors.Is(err, sealsv1alpha1.ErrNoProvider) {
+			return nil
 		}
+		secret.Data = data
 
 		return ctrl.SetControllerReference(asset, secret, r.Scheme)
 	}); err != nil {

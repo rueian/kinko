@@ -17,6 +17,12 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/rueian/kinko/kms"
+	"github.com/rueian/kinko/unseal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -59,4 +65,41 @@ type AssetList struct {
 
 func init() {
 	SchemeBuilder.Register(&Asset{}, &AssetList{})
+}
+
+var (
+	ErrEmptyParam = errors.New("should not be empty")
+	ErrNoProvider = errors.New("not supported provider")
+)
+
+func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Provider) (map[string][]byte, error) {
+	if len(a.Spec.EncryptedData) == 0 {
+		return nil, nil
+	}
+
+	provider, ok := providers[a.Spec.Provider]
+	if !ok {
+		return nil, fmt.Errorf("%s %w", a.Spec.Provider, ErrNoProvider)
+	}
+
+	if len(a.Spec.ProviderParams) == 0 || len(a.Spec.SealingDetail) == 0 {
+		return nil, fmt.Errorf("ProviderParams or SealingDetail %w", ErrEmptyParam)
+	}
+
+	detail, err := provider.Decrypt(ctx, []byte(a.Spec.ProviderParams), a.Spec.SealingDetail)
+	if err != nil {
+		return nil, err
+	}
+
+	data := make(map[string][]byte)
+	// unseal the asset
+	for k, v := range a.Spec.EncryptedData {
+		unsealed, err := unseal.Decrypt(detail, v)
+		if err != nil {
+			return nil, err
+		}
+		data[k] = unsealed
+	}
+
+	return data, nil
 }
