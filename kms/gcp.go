@@ -4,8 +4,11 @@ import (
 	gcpkms "cloud.google.com/go/kms/apiv1"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/rueian/kinko/pb"
 	gcpkmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -29,12 +32,12 @@ type GCP struct {
 func (p *GCP) Decrypt(ctx context.Context, params []byte, seal []byte) (detail *pb.SealingDetail, err error) {
 	ps := GCPParams{}
 	if err = json.Unmarshal(params, &ps); err != nil {
-		return
+		return nil, fmt.Errorf("fail to unmarshal GCPParams: %w", ErrBadData)
 	}
 
 	var result []byte
 	if ps.Asymmetric {
-		res := &gcpkmspb.AsymmetricDecryptResponse{}
+		var res *gcpkmspb.AsymmetricDecryptResponse
 		if res, err = p.client.AsymmetricDecrypt(ctx, &gcpkmspb.AsymmetricDecryptRequest{
 			Name:       ps.KeyID,
 			Ciphertext: seal,
@@ -42,7 +45,7 @@ func (p *GCP) Decrypt(ctx context.Context, params []byte, seal []byte) (detail *
 			result = res.Plaintext
 		}
 	} else {
-		res := &gcpkmspb.DecryptResponse{}
+		var res *gcpkmspb.DecryptResponse
 		if res, err = p.client.Decrypt(ctx, &gcpkmspb.DecryptRequest{
 			Name:       ps.KeyID,
 			Ciphertext: seal,
@@ -50,9 +53,15 @@ func (p *GCP) Decrypt(ctx context.Context, params []byte, seal []byte) (detail *
 			result = res.Plaintext
 		}
 	}
-	if err == nil {
-		detail = &pb.SealingDetail{}
-		err = proto.Unmarshal(result, detail)
+	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.InvalidArgument {
+			err = fmt.Errorf("%s: %w", err.Error(), ErrBadData)
+		}
+		return nil, err
+	}
+	detail = &pb.SealingDetail{}
+	if err = proto.Unmarshal(result, detail); err != nil {
+		return nil, fmt.Errorf("fail to unmarshal SealingDetail: %w", ErrBadData)
 	}
 	return
 }

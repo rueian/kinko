@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/rueian/kinko/status"
 
 	"github.com/rueian/kinko/kms"
 	"github.com/rueian/kinko/unseal"
@@ -39,7 +40,7 @@ type AssetSpec struct {
 
 // AssetStatus defines the observed state of Asset
 type AssetStatus struct {
-	LastSyncedTimestamp metav1.Time `json:"lastSyncedTimestamp"`
+	Conditions status.Conditions `json:"conditions"`
 }
 
 // +kubebuilder:object:root=true

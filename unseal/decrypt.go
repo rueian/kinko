@@ -5,13 +5,18 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"errors"
+	"fmt"
 
 	"github.com/rueian/kinko/pb"
 )
 
+var (
+	ErrBadData = errors.New("bad data")
+)
+
 func Decrypt(detail *pb.SealingDetail, data []byte) (unsealed []byte, err error) {
 	if detail.Mode != pb.SealingMode_AES_256_GCM {
-		return nil, errors.New("currently only support AES-256-GCM")
+		return nil, fmt.Errorf("currently only support AES-256-GCM: %w", ErrBadData)
 	}
 
 	block, err := aes.NewCipher(detail.Dek)
@@ -25,7 +30,7 @@ func Decrypt(detail *pb.SealingDetail, data []byte) (unsealed []byte, err error)
 	}
 
 	if len(data) < gcm.NonceSize() {
-		return nil, errors.New("nonce missing")
+		return nil, fmt.Errorf("nonce missing: %w", ErrBadData)
 	}
 
 	return gcm.Open(nil, data[:gcm.NonceSize()], data[gcm.NonceSize():], nil)
