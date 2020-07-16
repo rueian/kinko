@@ -117,6 +117,7 @@ func Seal(cmd *cobra.Command, args []string) error {
 				Namespace: secret.Namespace,
 			},
 			Spec: sealsv1alpha1.AssetSpec{
+				Type:           secret.Type,
 				Provider:       "GCP",
 				ProviderParams: string(params),
 				EncryptedData:  make(map[string][]byte),
