@@ -54,6 +54,7 @@ func (r *Asset) Validate() error {
 		if err := json.Unmarshal([]byte(r.Spec.ProviderParams), &param); err != nil {
 			return err
 		}
+		return param.Validate()
 	}
 	return nil
 }

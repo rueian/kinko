@@ -3,6 +3,7 @@ package kms
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	gcpkms "cloud.google.com/go/kms/apiv1"
@@ -17,6 +18,13 @@ import (
 type GCPParams struct {
 	KeyID      string `json:"keyId"`
 	Asymmetric bool   `json:"asymmetric"`
+}
+
+func (p *GCPParams) Validate() error {
+	if p.KeyID == "" {
+		return errors.New("keyId should not be empty")
+	}
+	return nil
 }
 
 func NewGCP(ctx context.Context) (*GCP, error) {
