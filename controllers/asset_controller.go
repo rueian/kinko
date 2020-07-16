@@ -87,7 +87,7 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		secret.ObjectMeta.Annotations = map[string]string{
 			assetVersionAnnotation: asset.ResourceVersion,
 		}
-		secret.Type = "Opaque"
+		secret.Type = asset.Spec.Type
 		secret.Data, err = asset.Unseal(ctx, r.Providers)
 		return err
 	}); err != nil {

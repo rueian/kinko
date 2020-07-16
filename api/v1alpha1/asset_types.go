@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/rueian/kinko/status"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/rueian/kinko/kms"
 	"github.com/rueian/kinko/unseal"
@@ -36,6 +37,7 @@ type AssetSpec struct {
 	ProviderParams string            `json:"providerParams"`
 	SealingDetail  []byte            `json:"sealingDetail"`
 	EncryptedData  map[string][]byte `json:"encryptedData"`
+	Type           corev1.SecretType `json:"type,omitempty"`
 }
 
 // AssetStatus defines the observed state of Asset

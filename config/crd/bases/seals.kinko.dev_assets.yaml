@@ -48,6 +48,8 @@ spec:
             sealingDetail:
               format: byte
               type: string
+            type:
+              type: string
           required:
           - encryptedData
           - provider
