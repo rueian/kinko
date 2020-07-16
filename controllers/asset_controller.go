@@ -104,11 +104,11 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		secret.Data = data
 		return nil
 	}); err != nil {
+		condition.Status = corev1.ConditionFalse
+		condition.Message = err.Error()
 		if errors.Is(err, status.ErrEmptyParam) ||
 			errors.Is(err, status.ErrNoProvider) ||
 			errors.Is(err, status.ErrBadData) {
-			condition.Status = corev1.ConditionFalse
-			condition.Message = err.Error()
 			condition.Reason = "BadData"
 			err = nil
 		}
