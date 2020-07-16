@@ -2,12 +2,8 @@ package kms
 
 import (
 	"context"
-	"errors"
-	"github.com/rueian/kinko/pb"
-)
 
-var (
-	ErrBadData = errors.New("bad data")
+	"github.com/rueian/kinko/pb"
 )
 
 type Provider interface {

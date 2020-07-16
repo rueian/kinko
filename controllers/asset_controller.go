@@ -17,19 +17,20 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+
 	"github.com/go-logr/logr"
+	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
 	"github.com/rueian/kinko/kms"
 	"github.com/rueian/kinko/status"
-	"github.com/rueian/kinko/unseal"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -73,28 +74,38 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		Namespace: asset.Namespace,
 	}}
 	if _, err = ctrl.CreateOrUpdate(ctx, r, secret, func() (err error) {
-		if len(secret.Annotations) > 0 {
-			if assetVersion, ok := secret.Annotations[assetVersionAnnotation]; ok && assetVersion == asset.ResourceVersion {
-				log.Info("the target secret is latest version, skip.")
-				return nil
-			}
+		if secret.Annotations == nil {
+			secret.Annotations = make(map[string]string)
 		}
-
+		if secret.Annotations[assetVersionAnnotation] == asset.ResourceVersion {
+			log.Info("the target secret is latest version, skip.")
+			return nil
+		}
 		if err := ctrl.SetControllerReference(asset, secret, r.Scheme); err != nil {
 			return err
 		}
 
-		secret.ObjectMeta.Annotations = map[string]string{
-			assetVersionAnnotation: asset.ResourceVersion,
+		data, err := asset.Unseal(ctx, r.Providers)
+		if err != nil {
+			return err
 		}
+		// migration mode, protect existing value
+		if secret.Annotations[assetVersionAnnotation] == "" {
+			for k, n := range data {
+				if o, ok := secret.Data[k]; ok && !bytes.Equal(n, o) {
+					return fmt.Errorf("migration failed: '%s' mismatch with the existing value: %w", k, status.ErrBadData)
+				}
+			}
+		}
+
+		secret.Annotations[assetVersionAnnotation] = asset.ResourceVersion
 		secret.Type = asset.Spec.Type
-		secret.Data, err = asset.Unseal(ctx, r.Providers)
-		return err
+		secret.Data = data
+		return nil
 	}); err != nil {
-		if errors.Is(err, sealsv1alpha1.ErrEmptyParam) ||
-			errors.Is(err, sealsv1alpha1.ErrNoProvider) ||
-			errors.Is(err, unseal.ErrBadData) ||
-			errors.Is(err, kms.ErrBadData) {
+		if errors.Is(err, status.ErrEmptyParam) ||
+			errors.Is(err, status.ErrNoProvider) ||
+			errors.Is(err, status.ErrBadData) {
 			condition.Status = corev1.ConditionFalse
 			condition.Message = err.Error()
 			condition.Reason = "BadData"

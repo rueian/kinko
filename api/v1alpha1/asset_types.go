@@ -18,8 +18,8 @@ package v1alpha1
 
 import (
 	"context"
-	"errors"
 	"fmt"
+
 	"github.com/rueian/kinko/status"
 	corev1 "k8s.io/api/core/v1"
 
@@ -70,11 +70,6 @@ func init() {
 	SchemeBuilder.Register(&Asset{}, &AssetList{})
 }
 
-var (
-	ErrEmptyParam = errors.New("should not be empty")
-	ErrNoProvider = errors.New("not supported provider")
-)
-
 func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Provider) (map[string][]byte, error) {
 	if len(a.Spec.EncryptedData) == 0 {
 		return nil, nil
@@ -82,11 +77,11 @@ func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Provider) (
 
 	provider, ok := providers[a.Spec.Provider]
 	if !ok {
-		return nil, fmt.Errorf("%s %w", a.Spec.Provider, ErrNoProvider)
+		return nil, fmt.Errorf("%s %w", a.Spec.Provider, status.ErrNoProvider)
 	}
 
 	if len(a.Spec.ProviderParams) == 0 || len(a.Spec.SealingDetail) == 0 {
-		return nil, fmt.Errorf("ProviderParams or SealingDetail %w", ErrEmptyParam)
+		return nil, fmt.Errorf("ProviderParams or SealingDetail %w", status.ErrEmptyParam)
 	}
 
 	detail, err := provider.Decrypt(ctx, []byte(a.Spec.ProviderParams), a.Spec.SealingDetail)
