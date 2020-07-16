@@ -5,26 +5,18 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
-	"errors"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 
-	gcpkms "cloud.google.com/go/kms/apiv1"
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
 	"github.com/rueian/kinko/kms"
 	"github.com/rueian/kinko/pb"
 	"github.com/rueian/kinko/unseal"
 	"github.com/spf13/cobra"
-	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
-	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -88,7 +80,7 @@ func Seal(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cryptor, err := GetCryptor(KeyID)
+	provider, err := kms.NewGCP(context.Background())
 	if err != nil {
 		return err
 	}
@@ -138,8 +130,7 @@ func Seal(cmd *cobra.Command, args []string) error {
 			asset.Spec.EncryptedData[k] = encrypted
 		}
 
-		bs, _ := proto.Marshal(detail)
-		sealed, err := cryptor.Encrypt(bs)
+		sealed, err := provider.Encrypt(context.Background(), params, detail)
 		if err != nil {
 			return err
 		}
@@ -254,11 +245,6 @@ func Create(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(secrets) > 0 {
-		cryptor, err := GetCryptor(KeyID)
-		if err != nil {
-			return err
-		}
-
 		detail := &pb.SealingDetail{
 			Mode: pb.SealingMode_AES_256_GCM,
 			Dek:  make([]byte, 32),
@@ -273,8 +259,12 @@ func Create(cmd *cobra.Command, args []string) error {
 			asset.Spec.EncryptedData[k] = encrypted
 		}
 
-		bs, _ := proto.Marshal(detail)
-		sealed, err := cryptor.Encrypt(bs)
+		provider, err := kms.NewGCP(context.Background())
+		if err != nil {
+			return err
+		}
+
+		sealed, err := provider.Encrypt(context.Background(), params, detail)
 		if err != nil {
 			return err
 		}
@@ -282,40 +272,6 @@ func Create(cmd *cobra.Command, args []string) error {
 	}
 
 	return writeYAML(writer, encoder, asset)
-}
-
-func GetCryptor(keyID string) (Cryptor, error) {
-	ctx := context.Background()
-	client, err := gcpkms.NewKeyManagementClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	cryptoKey, err := client.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{Name: keyID})
-	if err != nil {
-		return nil, err
-	}
-
-	if cryptoKey.Algorithm != kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_3072_SHA256 {
-		return nil, errors.New("only support CryptoKeyVersion_RSA_DECRYPT_OAEP_3072_SHA256")
-	}
-
-	response, err := client.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: keyID})
-	if err != nil {
-		return nil, err
-	}
-
-	block, _ := pem.Decode([]byte(response.Pem))
-	publicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	rsaKey, ok := publicKey.(*rsa.PublicKey)
-	if !ok {
-		return nil, err
-	}
-
-	return &RsaSha256Cryptor{rsa: rsaKey}, nil
 }
 
 func writeYAML(writer io.Writer, encoder runtime.Encoder, obj runtime.Object) (err error) {
@@ -333,18 +289,6 @@ func readYAMLs(reader io.Reader) ([][]byte, error) {
 		return nil, err
 	}
 	return bytes.Split(bs, []byte("\n---")), nil
-}
-
-type Cryptor interface {
-	Encrypt(data []byte) ([]byte, error)
-}
-
-type RsaSha256Cryptor struct {
-	rsa *rsa.PublicKey
-}
-
-func (c *RsaSha256Cryptor) Encrypt(data []byte) ([]byte, error) {
-	return rsa.EncryptOAEP(sha256.New(), rand.Reader, c.rsa, data, nil)
 }
 
 func main() {
