@@ -64,6 +64,7 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		Status: corev1.ConditionTrue,
 	}
 	defer func() {
+		condition.LastTransitionTime = metav1.Now()
 		asset.Status.Conditions.SetCondition(condition)
 		err = r.Status().Update(ctx, asset)
 	}()
