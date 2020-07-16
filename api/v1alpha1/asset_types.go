@@ -33,6 +33,7 @@ import (
 
 // AssetSpec defines the desired state of Asset
 type AssetSpec struct {
+	// +kubebuilder:validation:Enum=GCP
 	Provider       string            `json:"provider"`
 	ProviderParams string            `json:"providerParams"`
 	SealingDetail  []byte            `json:"sealingDetail"`

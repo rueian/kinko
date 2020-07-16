@@ -19,8 +19,9 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/rueian/kinko/kms"
 	"os"
+
+	"github.com/rueian/kinko/kms"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -79,6 +80,12 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Asset")
 		os.Exit(1)
+	}
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = (&sealsv1alpha1.Asset{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Asset")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 

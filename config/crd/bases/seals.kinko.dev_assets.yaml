@@ -42,6 +42,8 @@ spec:
                 type: string
               type: object
             provider:
+              enum:
+              - GCP
               type: string
             providerParams:
               type: string
