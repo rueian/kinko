@@ -25,63 +25,63 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
-type SealingMode int32
+type Seal_Mode int32
 
 const (
-	SealingMode_UNKNOWN     SealingMode = 0
-	SealingMode_AES_256_GCM SealingMode = 1
+	Seal_UNKNOWN     Seal_Mode = 0
+	Seal_AES_256_GCM Seal_Mode = 1
 )
 
-// Enum value maps for SealingMode.
+// Enum value maps for Seal_Mode.
 var (
-	SealingMode_name = map[int32]string{
+	Seal_Mode_name = map[int32]string{
 		0: "UNKNOWN",
 		1: "AES_256_GCM",
 	}
-	SealingMode_value = map[string]int32{
+	Seal_Mode_value = map[string]int32{
 		"UNKNOWN":     0,
 		"AES_256_GCM": 1,
 	}
 )
 
-func (x SealingMode) Enum() *SealingMode {
-	p := new(SealingMode)
+func (x Seal_Mode) Enum() *Seal_Mode {
+	p := new(Seal_Mode)
 	*p = x
 	return p
 }
 
-func (x SealingMode) String() string {
+func (x Seal_Mode) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (SealingMode) Descriptor() protoreflect.EnumDescriptor {
+func (Seal_Mode) Descriptor() protoreflect.EnumDescriptor {
 	return file_pb_pb_proto_enumTypes[0].Descriptor()
 }
 
-func (SealingMode) Type() protoreflect.EnumType {
+func (Seal_Mode) Type() protoreflect.EnumType {
 	return &file_pb_pb_proto_enumTypes[0]
 }
 
-func (x SealingMode) Number() protoreflect.EnumNumber {
+func (x Seal_Mode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SealingMode.Descriptor instead.
-func (SealingMode) EnumDescriptor() ([]byte, []int) {
-	return file_pb_pb_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use Seal_Mode.Descriptor instead.
+func (Seal_Mode) EnumDescriptor() ([]byte, []int) {
+	return file_pb_pb_proto_rawDescGZIP(), []int{0, 0}
 }
 
-type SealingDetail struct {
+type Seal struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Mode SealingMode `protobuf:"varint,1,opt,name=mode,proto3,enum=pb.SealingMode" json:"mode,omitempty"`
-	Dek  []byte      `protobuf:"bytes,2,opt,name=dek,proto3" json:"dek,omitempty"`
+	Mode Seal_Mode `protobuf:"varint,1,opt,name=mode,proto3,enum=pb.Seal_Mode" json:"mode,omitempty"`
+	Dek  []byte    `protobuf:"bytes,2,opt,name=dek,proto3" json:"dek,omitempty"`
 }
 
-func (x *SealingDetail) Reset() {
-	*x = SealingDetail{}
+func (x *Seal) Reset() {
+	*x = Seal{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_pb_pb_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -89,13 +89,13 @@ func (x *SealingDetail) Reset() {
 	}
 }
 
-func (x *SealingDetail) String() string {
+func (x *Seal) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SealingDetail) ProtoMessage() {}
+func (*Seal) ProtoMessage() {}
 
-func (x *SealingDetail) ProtoReflect() protoreflect.Message {
+func (x *Seal) ProtoReflect() protoreflect.Message {
 	mi := &file_pb_pb_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -107,19 +107,19 @@ func (x *SealingDetail) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SealingDetail.ProtoReflect.Descriptor instead.
-func (*SealingDetail) Descriptor() ([]byte, []int) {
+// Deprecated: Use Seal.ProtoReflect.Descriptor instead.
+func (*Seal) Descriptor() ([]byte, []int) {
 	return file_pb_pb_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *SealingDetail) GetMode() SealingMode {
+func (x *Seal) GetMode() Seal_Mode {
 	if x != nil {
 		return x.Mode
 	}
-	return SealingMode_UNKNOWN
+	return Seal_UNKNOWN
 }
 
-func (x *SealingDetail) GetDek() []byte {
+func (x *Seal) GetDek() []byte {
 	if x != nil {
 		return x.Dek
 	}
@@ -130,16 +130,15 @@ var File_pb_pb_proto protoreflect.FileDescriptor
 
 var file_pb_pb_proto_rawDesc = []byte{
 	0x0a, 0x0b, 0x70, 0x62, 0x2f, 0x70, 0x62, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x02, 0x70,
-	0x62, 0x22, 0x46, 0x0a, 0x0d, 0x53, 0x65, 0x61, 0x6c, 0x69, 0x6e, 0x67, 0x44, 0x65, 0x74, 0x61,
-	0x69, 0x6c, 0x12, 0x23, 0x0a, 0x04, 0x6d, 0x6f, 0x64, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e,
-	0x32, 0x0f, 0x2e, 0x70, 0x62, 0x2e, 0x53, 0x65, 0x61, 0x6c, 0x69, 0x6e, 0x67, 0x4d, 0x6f, 0x64,
-	0x65, 0x52, 0x04, 0x6d, 0x6f, 0x64, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x64, 0x65, 0x6b, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x64, 0x65, 0x6b, 0x2a, 0x2b, 0x0a, 0x0b, 0x53, 0x65, 0x61,
-	0x6c, 0x69, 0x6e, 0x67, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x4e, 0x4b, 0x4e,
-	0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x41, 0x45, 0x53, 0x5f, 0x32, 0x35, 0x36,
-	0x5f, 0x47, 0x43, 0x4d, 0x10, 0x01, 0x42, 0x1c, 0x5a, 0x1a, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
-	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x72, 0x75, 0x65, 0x69, 0x61, 0x6e, 0x2f, 0x6b, 0x69, 0x6e, 0x6b,
-	0x6f, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x62, 0x22, 0x61, 0x0a, 0x04, 0x53, 0x65, 0x61, 0x6c, 0x12, 0x21, 0x0a, 0x04, 0x6d, 0x6f, 0x64,
+	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x0d, 0x2e, 0x70, 0x62, 0x2e, 0x53, 0x65, 0x61,
+	0x6c, 0x2e, 0x4d, 0x6f, 0x64, 0x65, 0x52, 0x04, 0x6d, 0x6f, 0x64, 0x65, 0x12, 0x10, 0x0a, 0x03,
+	0x64, 0x65, 0x6b, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x64, 0x65, 0x6b, 0x22, 0x24,
+	0x0a, 0x04, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57,
+	0x4e, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x41, 0x45, 0x53, 0x5f, 0x32, 0x35, 0x36, 0x5f, 0x47,
+	0x43, 0x4d, 0x10, 0x01, 0x42, 0x1c, 0x5a, 0x1a, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
+	0x6f, 0x6d, 0x2f, 0x72, 0x75, 0x65, 0x69, 0x61, 0x6e, 0x2f, 0x6b, 0x69, 0x6e, 0x6b, 0x6f, 0x2f,
+	0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -157,11 +156,11 @@ func file_pb_pb_proto_rawDescGZIP() []byte {
 var file_pb_pb_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_pb_pb_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_pb_pb_proto_goTypes = []interface{}{
-	(SealingMode)(0),      // 0: pb.SealingMode
-	(*SealingDetail)(nil), // 1: pb.SealingDetail
+	(Seal_Mode)(0), // 0: pb.Seal.Mode
+	(*Seal)(nil),   // 1: pb.Seal
 }
 var file_pb_pb_proto_depIdxs = []int32{
-	0, // 0: pb.SealingDetail.mode:type_name -> pb.SealingMode
+	0, // 0: pb.Seal.mode:type_name -> pb.Seal.Mode
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -176,7 +175,7 @@ func file_pb_pb_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_pb_pb_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SealingDetail); i {
+			switch v := v.(*Seal); i {
 			case 0:
 				return &v.state
 			case 1:

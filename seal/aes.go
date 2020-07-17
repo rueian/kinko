@@ -1,4 +1,4 @@
-package unseal
+package seal
 
 import (
 	"crypto/aes"
@@ -10,8 +10,8 @@ import (
 	"github.com/rueian/kinko/status"
 )
 
-func Decrypt(detail *pb.SealingDetail, data []byte) (unsealed []byte, err error) {
-	if detail.Mode != pb.SealingMode_AES_256_GCM {
+func Decrypt(detail *pb.Seal, data []byte) (unsealed []byte, err error) {
+	if detail.Mode != pb.Seal_AES_256_GCM {
 		return nil, fmt.Errorf("currently only support AES-256-GCM: %w", status.ErrBadData)
 	}
 
@@ -32,7 +32,7 @@ func Decrypt(detail *pb.SealingDetail, data []byte) (unsealed []byte, err error)
 	return gcm.Open(nil, data[:gcm.NonceSize()], data[gcm.NonceSize():], nil)
 }
 
-func Encrypt(detail *pb.SealingDetail, data []byte) (unsealed []byte, err error) {
+func Encrypt(detail *pb.Seal, data []byte) (unsealed []byte, err error) {
 	block, err := aes.NewCipher(detail.Dek)
 	if err != nil {
 		return nil, err

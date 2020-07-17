@@ -73,10 +73,10 @@ func main() {
 	providers, err := kms.Providers(context.Background())
 
 	if err = (&controllers.AssetReconciler{
-		Client:    mgr.GetClient(),
-		Log:       ctrl.Log.WithName("controllers").WithName("Asset"),
-		Scheme:    mgr.GetScheme(),
-		Providers: providers,
+		Client:  mgr.GetClient(),
+		Log:     ctrl.Log.WithName("controllers").WithName("Asset"),
+		Scheme:  mgr.GetScheme(),
+		Plugins: providers,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Asset")
 		os.Exit(1)

@@ -2,12 +2,11 @@ syntax = "proto3";
 package pb;
 option go_package = "github.com/rueian/kinko/pb";
 
-enum SealingMode {
-  UNKNOWN = 0;
-  AES_256_GCM = 1;
-}
-
-message SealingDetail {
-  SealingMode mode = 1;
+message Seal {
+  enum Mode {
+    UNKNOWN = 0;
+    AES_256_GCM = 1;
+  }
+  Mode mode = 1;
   bytes dek = 2;
 }

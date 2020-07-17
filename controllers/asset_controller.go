@@ -43,7 +43,7 @@ type AssetReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 
-	Providers map[string]kms.Provider
+	Plugins map[string]kms.Plugin
 }
 
 // +kubebuilder:rbac:groups=seals.kinko.dev,resources=assets,verbs=get;list;watch;create;update;patch;delete
@@ -86,7 +86,7 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 			return err
 		}
 
-		data, err := asset.Unseal(ctx, r.Providers)
+		data, err := asset.Unseal(ctx, r.Plugins)
 		if err != nil {
 			return err
 		}
@@ -106,8 +106,8 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 	}); err != nil {
 		condition.Status = corev1.ConditionFalse
 		condition.Message = err.Error()
-		if errors.Is(err, status.ErrEmptyParam) ||
-			errors.Is(err, status.ErrNoProvider) ||
+		if errors.Is(err, status.ErrNoParams) ||
+			errors.Is(err, status.ErrNoPlugin) ||
 			errors.Is(err, status.ErrBadData) {
 			condition.Reason = "BadData"
 			err = nil

@@ -49,9 +49,9 @@ func (r *Asset) Default() {
 }
 
 func (r *Asset) Validate() error {
-	if r.Spec.Provider == "GCP" {
+	if r.Spec.SealingPlugin == "GCP" {
 		param := kms.GCPParams{}
-		if err := json.Unmarshal([]byte(r.Spec.ProviderParams), &param); err != nil {
+		if err := json.Unmarshal([]byte(r.Spec.SealingParams), &param); err != nil {
 			return err
 		}
 		return param.Validate()

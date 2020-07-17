@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"os"
@@ -15,7 +16,7 @@ import (
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
 	"github.com/rueian/kinko/kms"
 	"github.com/rueian/kinko/pb"
-	"github.com/rueian/kinko/unseal"
+	"github.com/rueian/kinko/seal"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,21 +29,21 @@ import (
 var (
 	rootCmd = &cobra.Command{
 		Use:   "kinko",
-		Short: "A generator for kinko sealed secrets",
+		Short: "A generator for kinko sealed assets",
 	}
 	sealCmd = &cobra.Command{
 		Use:   "seal",
-		Short: "seal k8s secrets yaml to kinko sealed secrets yaml",
+		Short: "seal k8s secrets yaml from stdin to kinko sealed assets yaml",
 		RunE:  Seal,
 	}
 	unsealCmd = &cobra.Command{
 		Use:   "unseal",
-		Short: "unseal to kinko yaml sealed secrets k8s secrets yaml",
+		Short: "unseal kinko yaml sealed assets from stdin to k8s secrets yaml",
 		RunE:  Unseal,
 	}
 	newCmd = &cobra.Command{
 		Use:   "new",
-		Short: "create kinko sealed secret yaml",
+		Short: "create kinko sealed assets yaml from CLI flags",
 		RunE:  Create,
 	}
 
@@ -109,32 +110,33 @@ func Seal(cmd *cobra.Command, args []string) error {
 				Namespace: secret.Namespace,
 			},
 			Spec: sealsv1alpha1.AssetSpec{
-				Type:           secret.Type,
-				Provider:       "GCP",
-				ProviderParams: string(params),
-				EncryptedData:  make(map[string][]byte),
+				Type:          secret.Type,
+				SealingPlugin: "GCP",
+				SealingParams: string(params),
+				EncryptedData: make(map[string][]byte),
 			},
 		}
 
-		detail := &pb.SealingDetail{
-			Mode: pb.SealingMode_AES_256_GCM,
+		detail := &pb.Seal{
+			Mode: pb.Seal_AES_256_GCM,
 			Dek:  make([]byte, 32),
 		}
 		rand.Read(detail.Dek)
 
 		for k, v := range secret.Data {
-			encrypted, err := unseal.Encrypt(detail, v)
+			encrypted, err := seal.Encrypt(detail, v)
 			if err != nil {
 				return err
 			}
 			asset.Spec.EncryptedData[k] = encrypted
 		}
 
-		sealed, err := provider.Encrypt(context.Background(), params, detail)
+		bs, _ := proto.Marshal(detail)
+		sealed, err := provider.Encrypt(context.Background(), params, bs)
 		if err != nil {
 			return err
 		}
-		asset.Spec.SealingDetail = sealed
+		asset.Spec.EncryptedSeal = sealed
 
 		if err := writeYAML(writer, encoder, asset); err != nil {
 			return err
@@ -218,9 +220,9 @@ func Create(cmd *cobra.Command, args []string) error {
 			Namespace: namespace,
 		},
 		Spec: sealsv1alpha1.AssetSpec{
-			Provider:       "GCP",
-			ProviderParams: string(params),
-			EncryptedData:  make(map[string][]byte),
+			SealingPlugin: "GCP",
+			SealingParams: string(params),
+			EncryptedData: make(map[string][]byte),
 		},
 	}
 
@@ -245,14 +247,14 @@ func Create(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(secrets) > 0 {
-		detail := &pb.SealingDetail{
-			Mode: pb.SealingMode_AES_256_GCM,
+		detail := &pb.Seal{
+			Mode: pb.Seal_AES_256_GCM,
 			Dek:  make([]byte, 32),
 		}
 		rand.Read(detail.Dek)
 
 		for k, v := range secrets {
-			encrypted, err := unseal.Encrypt(detail, v)
+			encrypted, err := seal.Encrypt(detail, v)
 			if err != nil {
 				return err
 			}
@@ -264,11 +266,12 @@ func Create(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		sealed, err := provider.Encrypt(context.Background(), params, detail)
+		bs, _ := proto.Marshal(detail)
+		sealed, err := provider.Encrypt(context.Background(), params, bs)
 		if err != nil {
 			return err
 		}
-		asset.Spec.SealingDetail = sealed
+		asset.Spec.EncryptedSeal = sealed
 	}
 
 	return writeYAML(writer, encoder, asset)

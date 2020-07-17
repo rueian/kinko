@@ -41,22 +41,22 @@ spec:
                 format: byte
                 type: string
               type: object
-            provider:
+            encryptedSeal:
+              format: byte
+              type: string
+            sealingParams:
+              type: string
+            sealingPlugin:
               enum:
               - GCP
-              type: string
-            providerParams:
-              type: string
-            sealingDetail:
-              format: byte
               type: string
             type:
               type: string
           required:
           - encryptedData
-          - provider
-          - providerParams
-          - sealingDetail
+          - encryptedSeal
+          - sealingParams
+          - sealingPlugin
           type: object
         status:
           description: AssetStatus defines the observed state of Asset

@@ -19,12 +19,14 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"github.com/rueian/kinko/pb"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/rueian/kinko/status"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/rueian/kinko/kms"
-	"github.com/rueian/kinko/unseal"
+	"github.com/rueian/kinko/seal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,11 +36,11 @@ import (
 // AssetSpec defines the desired state of Asset
 type AssetSpec struct {
 	// +kubebuilder:validation:Enum=GCP
-	Provider       string            `json:"provider"`
-	ProviderParams string            `json:"providerParams"`
-	SealingDetail  []byte            `json:"sealingDetail"`
-	EncryptedData  map[string][]byte `json:"encryptedData"`
-	Type           corev1.SecretType `json:"type,omitempty"`
+	SealingPlugin string            `json:"sealingPlugin"`
+	SealingParams string            `json:"sealingParams"`
+	EncryptedSeal []byte            `json:"encryptedSeal"`
+	EncryptedData map[string][]byte `json:"encryptedData"`
+	Type          corev1.SecretType `json:"type,omitempty"`
 }
 
 // AssetStatus defines the observed state of Asset
@@ -71,33 +73,35 @@ func init() {
 	SchemeBuilder.Register(&Asset{}, &AssetList{})
 }
 
-func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Provider) (map[string][]byte, error) {
+func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Plugin) (map[string][]byte, error) {
 	if len(a.Spec.EncryptedData) == 0 {
 		return nil, nil
 	}
 
-	provider, ok := providers[a.Spec.Provider]
+	plugin, ok := providers[a.Spec.SealingPlugin]
 	if !ok {
-		return nil, fmt.Errorf("%s %w", a.Spec.Provider, status.ErrNoProvider)
+		return nil, fmt.Errorf("%s %w", a.Spec.SealingPlugin, status.ErrNoPlugin)
 	}
 
-	if len(a.Spec.ProviderParams) == 0 || len(a.Spec.SealingDetail) == 0 {
-		return nil, fmt.Errorf("ProviderParams or SealingDetail %w", status.ErrEmptyParam)
+	if len(a.Spec.SealingParams) == 0 || len(a.Spec.EncryptedSeal) == 0 {
+		return nil, fmt.Errorf("SealingParams or EncryptedSeal %w", status.ErrNoParams)
 	}
 
-	detail, err := provider.Decrypt(ctx, []byte(a.Spec.ProviderParams), a.Spec.SealingDetail)
+	bs, err := plugin.Decrypt(ctx, []byte(a.Spec.SealingParams), a.Spec.EncryptedSeal)
 	if err != nil {
 		return nil, err
 	}
 
+	detail := pb.Seal{}
+	if err := proto.Unmarshal(bs, &detail); err != nil {
+		return nil, fmt.Errorf("fail to unmarshal EncryptedSeal: %w", status.ErrBadData)
+	}
+
 	data := make(map[string][]byte)
-	// unseal the asset
 	for k, v := range a.Spec.EncryptedData {
-		unsealed, err := unseal.Decrypt(detail, v)
-		if err != nil {
+		if data[k], err = seal.Decrypt(&detail, v); err != nil {
 			return nil, err
 		}
-		data[k] = unsealed
 	}
 
 	return data, nil

@@ -15,12 +15,10 @@ import (
 	"sync"
 
 	gcpkms "cloud.google.com/go/kms/apiv1"
-	"github.com/rueian/kinko/pb"
 	"github.com/rueian/kinko/status"
 	gcpkmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 type GCPParams struct {
@@ -57,15 +55,10 @@ type Asymmetric struct {
 	algorithm func() hash.Hash
 }
 
-func (p *GCP) Encrypt(ctx context.Context, params []byte, detail *pb.SealingDetail) (seal []byte, err error) {
+func (p *GCP) Encrypt(ctx context.Context, params, plain []byte) (seal []byte, err error) {
 	ps := GCPParams{}
 	if err = json.Unmarshal(params, &ps); err != nil {
 		return nil, fmt.Errorf("fail to unmarshal GCPParams: %w", status.ErrBadData)
-	}
-
-	bs, err := proto.Marshal(detail)
-	if err != nil {
-		return nil, err
 	}
 
 	if ps.Asymmetric {
@@ -105,11 +98,11 @@ func (p *GCP) Encrypt(ctx context.Context, params []byte, detail *pb.SealingDeta
 			}
 			method = p.asymmetrics[ps.KeyID]
 		}
-		return rsa.EncryptOAEP(method.algorithm(), rand.Reader, method.publicKey, bs, nil)
+		return rsa.EncryptOAEP(method.algorithm(), rand.Reader, method.publicKey, plain, nil)
 	} else {
 		res, err := p.client.Encrypt(ctx, &gcpkmspb.EncryptRequest{
 			Name:      ps.KeyID,
-			Plaintext: bs,
+			Plaintext: plain,
 		})
 		if err != nil {
 			return nil, err
@@ -118,39 +111,31 @@ func (p *GCP) Encrypt(ctx context.Context, params []byte, detail *pb.SealingDeta
 	}
 }
 
-func (p *GCP) Decrypt(ctx context.Context, params []byte, seal []byte) (detail *pb.SealingDetail, err error) {
+func (p *GCP) Decrypt(ctx context.Context, params, cipher []byte) (plain []byte, err error) {
 	ps := GCPParams{}
 	if err = json.Unmarshal(params, &ps); err != nil {
 		return nil, fmt.Errorf("fail to unmarshal GCPParams: %w", status.ErrBadData)
 	}
 
-	var result []byte
 	if ps.Asymmetric {
 		var res *gcpkmspb.AsymmetricDecryptResponse
 		if res, err = p.client.AsymmetricDecrypt(ctx, &gcpkmspb.AsymmetricDecryptRequest{
 			Name:       ps.KeyID,
-			Ciphertext: seal,
+			Ciphertext: cipher,
 		}); err == nil {
-			result = res.Plaintext
+			return res.Plaintext, nil
 		}
 	} else {
 		var res *gcpkmspb.DecryptResponse
 		if res, err = p.client.Decrypt(ctx, &gcpkmspb.DecryptRequest{
 			Name:       ps.KeyID,
-			Ciphertext: seal,
+			Ciphertext: cipher,
 		}); err == nil {
-			result = res.Plaintext
+			return res.Plaintext, nil
 		}
 	}
-	if err != nil {
-		if s, ok := grpcstatus.FromError(err); ok && s.Code() == codes.InvalidArgument {
-			err = fmt.Errorf("%s: %w", err.Error(), status.ErrBadData)
-		}
-		return nil, err
+	if s, ok := grpcstatus.FromError(err); ok && s.Code() == codes.InvalidArgument {
+		err = fmt.Errorf("%s: %w", err.Error(), status.ErrBadData)
 	}
-	detail = &pb.SealingDetail{}
-	if err = proto.Unmarshal(result, detail); err != nil {
-		return nil, fmt.Errorf("fail to unmarshal SealingDetail: %w", status.ErrBadData)
-	}
-	return
+	return nil, err
 }
