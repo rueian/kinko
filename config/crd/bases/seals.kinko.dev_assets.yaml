@@ -8,6 +8,16 @@ metadata:
   creationTimestamp: null
   name: assets.seals.kinko.dev
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.type
+    name: TYPE
+    type: string
+  - JSONPath: .spec.sealingPlugin
+    name: PLUGIN
+    type: string
+  - JSONPath: .status.conditions[?(@.type=="Synced")].status
+    name: SYNCED
+    type: boolean
   group: seals.kinko.dev
   names:
     kind: Asset
@@ -102,8 +112,6 @@ spec:
                 - type
                 type: object
               type: array
-          required:
-          - conditions
           type: object
       type: object
   version: v1alpha1

@@ -45,6 +45,7 @@ type AssetSpec struct {
 
 // AssetStatus defines the observed state of Asset
 type AssetStatus struct {
+	// +optional
 	Conditions status.Conditions `json:"conditions"`
 }
 
@@ -52,6 +53,9 @@ type AssetStatus struct {
 // +kubebuilder:subresource:status
 
 // Asset is the Schema for the assets API
+// +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.type`
+// +kubebuilder:printcolumn:name="PLUGIN",type=string,JSONPath=`.spec.sealingPlugin`
+// +kubebuilder:printcolumn:name="SYNCED",type=boolean,JSONPath=`.status.conditions[?(@.type=="Synced")].status`
 type Asset struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
