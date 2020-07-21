@@ -8,6 +8,8 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
+	"github.com/rueian/kinko/status"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"io/ioutil"
@@ -47,6 +49,11 @@ var (
 		Short: "create kinko sealed assets yaml from CLI flags",
 		RunE:  Create,
 	}
+	patchCmd = &cobra.Command{
+		Use:   "patch",
+		Short: "patch kinko sealed assets yaml from CLI flags",
+		RunE:  Patch,
+	}
 
 	KeyID         string
 	StringSecrets []string
@@ -66,8 +73,11 @@ func init() {
 	rootCmd.AddCommand(sealCmd)
 	rootCmd.AddCommand(unsealCmd)
 	rootCmd.AddCommand(newCmd)
+	rootCmd.AddCommand(patchCmd)
 	rootCmd.PersistentFlags().StringVarP(&KeyID, "key", "k", "", "the asymmetric key id of kms")
 	rootCmd.MarkFlagRequired("key")
+	patchCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
+	patchCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
 	newCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	newCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
 	newCmd.Args = cobra.MinimumNArgs(1)
@@ -211,24 +221,9 @@ func Create(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	secrets := make(map[string][]byte)
-
-	for _, v := range StringSecrets {
-		parts := strings.SplitN(v, "=", 2)
-		if len(parts) == 2 {
-			secrets[parts[0]] = []byte(parts[1])
-		}
-	}
-
-	for _, v := range Base64Secrets {
-		parts := strings.SplitN(v, "=", 2)
-		if len(parts) == 2 {
-			v, err := base64.StdEncoding.DecodeString(parts[1])
-			if err != nil {
-				return err
-			}
-			secrets[parts[0]] = v
-		}
+	secrets, err := secretsFromCLIFlags()
+	if err != nil {
+		return err
 	}
 
 	if len(secrets) > 0 {
@@ -239,6 +234,68 @@ func Create(cmd *cobra.Command, args []string) error {
 		asset.Spec.EncryptedData, err = encrypt(provider, params, secrets)
 		if err != nil {
 			return err
+		}
+	}
+
+	return writeYAML(writer, encoder, asset)
+}
+
+func Patch(cmd *cobra.Command, args []string) error {
+	secrets, err := secretsFromCLIFlags()
+	if err != nil {
+		return err
+	}
+
+	if len(secrets) == 0 {
+		return nil
+	}
+
+	writer := bufio.NewWriter(os.Stdout)
+	defer writer.Flush()
+
+	yamls, err := readYAMLs(os.Stdin)
+	if err != nil {
+		return err
+	}
+
+	if len(yamls) != 1 {
+		return errors.New("there should be exact 1 kinko asset crd from stdin")
+	}
+
+	providers, err := kms.Providers(context.Background())
+	if err != nil {
+		return err
+	}
+
+	info, _ := runtime.SerializerInfoForMediaType(codec.SupportedMediaTypes(), runtime.ContentTypeYAML)
+	encoder := codec.EncoderForVersion(info.Serializer, sealsv1alpha1.GroupVersion)
+
+	doc := yamls[0]
+
+	obj, _, err := decoder.Decode(doc, nil, nil)
+	if err != nil {
+		return err
+	}
+	asset := &sealsv1alpha1.Asset{}
+	if err := scheme.Convert(obj, asset, sealsv1alpha1.GroupVersion); err != nil {
+		return err
+	}
+
+	provider, ok := providers[asset.Spec.SealingPlugin]
+	if !ok {
+		return status.ErrNoPlugin
+	}
+
+	encrypted, err := encrypt(provider, []byte(asset.Spec.SealingParams), secrets)
+	if err != nil {
+		return err
+	}
+
+	for k := range secrets {
+		if v, ok := encrypted[k]; ok {
+			asset.Spec.EncryptedData[k] = v
+		} else {
+			delete(asset.Spec.EncryptedData, k)
 		}
 	}
 
@@ -262,6 +319,29 @@ func readYAMLs(reader io.Reader) ([][]byte, error) {
 	return bytes.Split(bs, []byte("\n---")), nil
 }
 
+func secretsFromCLIFlags() (map[string][]byte, error) {
+	secrets := make(map[string][]byte)
+
+	for _, v := range StringSecrets {
+		parts := strings.SplitN(v, "=", 2)
+		if len(parts) == 2 {
+			secrets[parts[0]] = []byte(parts[1])
+		}
+	}
+
+	for _, v := range Base64Secrets {
+		parts := strings.SplitN(v, "=", 2)
+		if len(parts) == 2 {
+			v, err := base64.StdEncoding.DecodeString(parts[1])
+			if err != nil {
+				return nil, err
+			}
+			secrets[parts[0]] = v
+		}
+	}
+	return secrets, nil
+}
+
 func encrypt(provider kms.Plugin, params []byte, secrets map[string][]byte) (map[string][]byte, error) {
 	encrypted := make(map[string][]byte, len(secrets))
 
@@ -271,6 +351,10 @@ func encrypt(provider kms.Plugin, params []byte, secrets map[string][]byte) (map
 	}
 
 	for k, v := range secrets {
+		if len(v) == 0 {
+			continue
+		}
+
 		rand.Read(detail.Dek)
 
 		bs, _ := proto.Marshal(detail)
