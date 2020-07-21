@@ -18,15 +18,15 @@ package v1alpha1
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
-	"github.com/rueian/kinko/pb"
-	"google.golang.org/protobuf/proto"
-
-	"github.com/rueian/kinko/status"
-	corev1 "k8s.io/api/core/v1"
 
 	"github.com/rueian/kinko/kms"
+	"github.com/rueian/kinko/pb"
 	"github.com/rueian/kinko/seal"
+	"github.com/rueian/kinko/status"
+	"google.golang.org/protobuf/proto"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -38,7 +38,7 @@ type AssetSpec struct {
 	// +kubebuilder:validation:Enum=GCP
 	SealingPlugin string            `json:"sealingPlugin"`
 	SealingParams string            `json:"sealingParams"`
-	EncryptedSeal []byte            `json:"encryptedSeal"`
+	EncryptedSeal []byte            `json:"encryptedSeal,omitempty"`
 	EncryptedData map[string][]byte `json:"encryptedData"`
 	Type          corev1.SecretType `json:"type,omitempty"`
 }
@@ -87,24 +87,53 @@ func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Plugin) (ma
 		return nil, fmt.Errorf("%s %w", a.Spec.SealingPlugin, status.ErrNoPlugin)
 	}
 
-	if len(a.Spec.SealingParams) == 0 || len(a.Spec.EncryptedSeal) == 0 {
-		return nil, fmt.Errorf("SealingParams or EncryptedSeal %w", status.ErrNoParams)
+	if len(a.Spec.SealingParams) == 0 {
+		return nil, fmt.Errorf("SealingParams %w", status.ErrNoParams)
 	}
 
-	bs, err := plugin.Decrypt(ctx, []byte(a.Spec.SealingParams), a.Spec.EncryptedSeal)
-	if err != nil {
-		return nil, err
-	}
+	data := make(map[string][]byte, len(a.Spec.EncryptedData))
 
-	detail := pb.Seal{}
-	if err := proto.Unmarshal(bs, &detail); err != nil {
-		return nil, fmt.Errorf("fail to unmarshal EncryptedSeal: %w", status.ErrBadData)
-	}
-
-	data := make(map[string][]byte)
-	for k, v := range a.Spec.EncryptedData {
-		if data[k], err = seal.Decrypt(&detail, v); err != nil {
+	if len(a.Spec.EncryptedSeal) != 0 {
+		bs, err := plugin.Decrypt(ctx, []byte(a.Spec.SealingParams), a.Spec.EncryptedSeal)
+		if err != nil {
 			return nil, err
+		}
+
+		detail := pb.Seal{}
+		if err := proto.Unmarshal(bs, &detail); err != nil {
+			return nil, fmt.Errorf("fail to unmarshal EncryptedSeal: %w", status.ErrBadData)
+		}
+
+		for k, v := range a.Spec.EncryptedData {
+			if data[k], err = seal.Decrypt(&detail, v); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		for k, v := range a.Spec.EncryptedData {
+			if len(v) < 2 {
+				return nil, fmt.Errorf("data '%s' too short: %w", k, status.ErrBadData)
+			}
+			size := binary.BigEndian.Uint16(v[:2])
+			if len(v) < int(2+size) {
+				return nil, fmt.Errorf("data '%s' too short: %w", k, status.ErrBadData)
+			}
+			dekv := v[2 : 2+size]
+			encv := v[2+size:]
+
+			bs, err := plugin.Decrypt(ctx, []byte(a.Spec.SealingParams), dekv)
+			if err != nil {
+				return nil, err
+			}
+
+			detail := pb.Seal{}
+			if err := proto.Unmarshal(bs, &detail); err != nil {
+				return nil, fmt.Errorf("fail to unmarshal EncryptedSeal: %w", status.ErrBadData)
+			}
+
+			if data[k], err = seal.Decrypt(&detail, encv); err != nil {
+				return nil, err
+			}
 		}
 	}
 

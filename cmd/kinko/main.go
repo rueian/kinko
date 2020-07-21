@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -117,26 +118,10 @@ func Seal(cmd *cobra.Command, args []string) error {
 			},
 		}
 
-		detail := &pb.Seal{
-			Mode: pb.Seal_AES_256_GCM,
-			Dek:  make([]byte, 32),
-		}
-		rand.Read(detail.Dek)
-
-		for k, v := range secret.Data {
-			encrypted, err := seal.Encrypt(detail, v)
-			if err != nil {
-				return err
-			}
-			asset.Spec.EncryptedData[k] = encrypted
-		}
-
-		bs, _ := proto.Marshal(detail)
-		sealed, err := provider.Encrypt(context.Background(), params, bs)
+		asset.Spec.EncryptedData, err = encrypt(provider, params, secret.Data)
 		if err != nil {
 			return err
 		}
-		asset.Spec.EncryptedSeal = sealed
 
 		if err := writeYAML(writer, encoder, asset); err != nil {
 			return err
@@ -247,31 +232,14 @@ func Create(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(secrets) > 0 {
-		detail := &pb.Seal{
-			Mode: pb.Seal_AES_256_GCM,
-			Dek:  make([]byte, 32),
-		}
-		rand.Read(detail.Dek)
-
-		for k, v := range secrets {
-			encrypted, err := seal.Encrypt(detail, v)
-			if err != nil {
-				return err
-			}
-			asset.Spec.EncryptedData[k] = encrypted
-		}
-
 		provider, err := kms.NewGCP(context.Background())
 		if err != nil {
 			return err
 		}
-
-		bs, _ := proto.Marshal(detail)
-		sealed, err := provider.Encrypt(context.Background(), params, bs)
+		asset.Spec.EncryptedData, err = encrypt(provider, params, secrets)
 		if err != nil {
 			return err
 		}
-		asset.Spec.EncryptedSeal = sealed
 	}
 
 	return writeYAML(writer, encoder, asset)
@@ -292,6 +260,41 @@ func readYAMLs(reader io.Reader) ([][]byte, error) {
 		return nil, err
 	}
 	return bytes.Split(bs, []byte("\n---")), nil
+}
+
+func encrypt(provider kms.Plugin, params []byte, secrets map[string][]byte) (map[string][]byte, error) {
+	encrypted := make(map[string][]byte, len(secrets))
+
+	detail := &pb.Seal{
+		Mode: pb.Seal_AES_256_GCM,
+		Dek:  make([]byte, 32),
+	}
+
+	for k, v := range secrets {
+		rand.Read(detail.Dek)
+
+		bs, _ := proto.Marshal(detail)
+		dekv, err := provider.Encrypt(context.Background(), params, bs)
+		if err != nil {
+			return nil, err
+		}
+
+		encv, err := seal.Encrypt(detail, v)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(dekv) > 65535 {
+			panic("the length of encrypted seal exceed the max uint16 (65535)")
+		}
+
+		result := make([]byte, 2+len(dekv)+len(encv))
+		binary.BigEndian.PutUint16(result[:2], uint16(len(dekv)))
+		copy(result[2:2+len(dekv)], dekv)
+		copy(result[2+len(dekv):], encv)
+		encrypted[k] = result
+	}
+	return encrypted, nil
 }
 
 func main() {

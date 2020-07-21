@@ -65,7 +65,6 @@ spec:
               type: string
           required:
           - encryptedData
-          - encryptedSeal
           - sealingParams
           - sealingPlugin
           type: object
