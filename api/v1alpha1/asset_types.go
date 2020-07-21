@@ -55,7 +55,7 @@ type AssetStatus struct {
 // Asset is the Schema for the assets API
 // +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="PLUGIN",type=string,JSONPath=`.spec.sealingPlugin`
-// +kubebuilder:printcolumn:name="SYNCED",type=boolean,JSONPath=`.status.conditions[?(@.type=="Synced")].status`
+// +kubebuilder:printcolumn:name="SYNCED",type=string,JSONPath=`.status.conditions[?(@.type=="Synced")].status`
 type Asset struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

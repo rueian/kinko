@@ -17,7 +17,7 @@ spec:
     type: string
   - JSONPath: .status.conditions[?(@.type=="Synced")].status
     name: SYNCED
-    type: boolean
+    type: string
   group: seals.kinko.dev
   names:
     kind: Asset
