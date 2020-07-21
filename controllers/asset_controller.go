@@ -21,6 +21,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/crc32"
+	"sort"
+	"strconv"
 
 	"github.com/go-logr/logr"
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
@@ -35,6 +38,7 @@ import (
 
 var (
 	assetVersionAnnotation = "seals.kinko.dev/asset-version"
+	dataChecksumAnnotation = "seals.kinko.dev/data-checksum"
 )
 
 // AssetReconciler reconciles a Asset object
@@ -81,7 +85,8 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		if secret.Annotations == nil {
 			secret.Annotations = make(map[string]string)
 		}
-		if secret.Annotations[assetVersionAnnotation] == asset.ResourceVersion {
+		if secret.Annotations[assetVersionAnnotation] == asset.ResourceVersion &&
+			secret.Annotations[dataChecksumAnnotation] == checksum(secret) {
 			log.Info("the target secret is latest version, skip.")
 			return nil
 		}
@@ -105,6 +110,7 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		secret.Annotations[assetVersionAnnotation] = asset.ResourceVersion
 		secret.Type = asset.Spec.Type
 		secret.Data = data
+		secret.Annotations[dataChecksumAnnotation] = checksum(secret)
 		return nil
 	}); err != nil {
 		condition.Status = corev1.ConditionFalse
@@ -124,4 +130,17 @@ func (r *AssetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&sealsv1alpha1.Asset{}).
 		Owns(&corev1.Secret{}).
 		Complete(r)
+}
+
+func checksum(secret *corev1.Secret) string {
+	keys := make([]string, 0, len(secret.Data))
+	for k := range secret.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	checksum := crc32.NewIEEE()
+	for _, k := range keys {
+		checksum.Write(secret.Data[k])
+	}
+	return strconv.FormatUint(uint64(checksum.Sum32()), 10)
 }
