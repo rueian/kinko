@@ -62,26 +62,12 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 	if err := r.Get(ctx, req.NamespacedName, asset); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
-	condition := status.Condition{
-		Type:   "Synced",
-		Status: corev1.ConditionTrue,
-	}
-	defer func() {
-		condition.LastTransitionTime = metav1.Now()
-		asset.Status.Conditions.SetCondition(condition)
-		if err2 := r.Status().Update(ctx, asset); err2 != nil {
-			log.Error(err, "fail to update status")
-			err = err2
-		}
-	}()
-
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 		Name:      asset.Name,
 		Namespace: asset.Namespace,
 	}}
-	if _, err = ctrl.CreateOrUpdate(ctx, r, secret, func() (err error) {
+	_, err = ctrl.CreateOrUpdate(ctx, r, secret, func() (err error) {
 		if secret.Annotations == nil {
 			secret.Annotations = make(map[string]string)
 		}
@@ -102,27 +88,25 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		if secret.Annotations[assetVersionAnnotation] == "" {
 			for k, n := range data {
 				if o, ok := secret.Data[k]; ok && !bytes.Equal(n, o) {
-					return fmt.Errorf("migration failed: '%s' mismatch with the existing value: %w", k, status.ErrBadData)
+					return fmt.Errorf("migration failed: '%s' mismatch with the existing value: %w", k, status.ErrMigrate)
 				}
 			}
 		}
 
-		secret.Annotations[assetVersionAnnotation] = asset.ResourceVersion
-		secret.Type = asset.Spec.Type
 		secret.Data = data
+		secret.Type = asset.Spec.Type
+		secret.Annotations[assetVersionAnnotation] = asset.ResourceVersion
 		secret.Annotations[dataChecksumAnnotation] = checksum(secret)
 		return nil
-	}); err != nil {
-		condition.Status = corev1.ConditionFalse
-		condition.Message = err.Error()
-		if errors.Is(err, status.ErrNoParams) ||
-			errors.Is(err, status.ErrNoPlugin) ||
-			errors.Is(err, status.ErrBadData) {
-			condition.Reason = "BadData"
-			err = nil
-		}
+	})
+
+	setSyncedCondition(asset, err)
+	if err := r.Status().Update(ctx, asset); err != nil {
+		log.Error(err, "fail to update status")
+		return ctrl.Result{}, err
 	}
-	return
+
+	return ctrl.Result{}, shouldRequeue(err)
 }
 
 func (r *AssetReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -130,6 +114,47 @@ func (r *AssetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&sealsv1alpha1.Asset{}).
 		Owns(&corev1.Secret{}).
 		Complete(r)
+}
+
+func setSyncedCondition(a *sealsv1alpha1.Asset, err error) {
+	sc := status.Condition{
+		Type:               "Synced",
+		Status:             corev1.ConditionTrue,
+		Reason:             status.ReasonSyncSuccess,
+		LastTransitionTime: metav1.Now(),
+	}
+	defer a.Status.Conditions.SetCondition(sc)
+
+	if err == nil {
+		return
+	}
+
+	sc.Status = corev1.ConditionFalse
+	sc.Message = err.Error()
+	switch {
+	case errors.Is(err, status.ErrNoPlugin):
+		sc.Reason = status.ReasonNoPlugin
+	case errors.Is(err, status.ErrMigrate):
+		sc.Reason = status.ReasonMigrationFailed
+	case errors.Is(err, status.ErrBadData):
+		sc.Reason = status.ReasonBadData
+	case errors.Is(err, status.ErrNoParams):
+		sc.Reason = status.ReasonNoParams
+	default:
+		sc.Reason = status.ReasonUnknown
+	}
+}
+
+func shouldRequeue(err error) error {
+	switch {
+	case errors.Is(err, status.ErrNoPlugin),
+		errors.Is(err, status.ErrMigrate),
+		errors.Is(err, status.ErrBadData),
+		errors.Is(err, status.ErrNoParams):
+		return nil
+	default:
+		return err
+	}
 }
 
 func checksum(secret *corev1.Secret) string {
