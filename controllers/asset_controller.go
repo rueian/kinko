@@ -66,7 +66,10 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 	defer func() {
 		condition.LastTransitionTime = metav1.Now()
 		asset.Status.Conditions.SetCondition(condition)
-		err = r.Status().Update(ctx, asset)
+		if err2 := r.Status().Update(ctx, asset); err2 != nil {
+			log.Error(err, "fail to update status")
+			err = err2
+		}
 	}()
 
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
