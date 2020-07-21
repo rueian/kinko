@@ -286,6 +286,20 @@ func Patch(cmd *cobra.Command, args []string) error {
 		return status.ErrNoPlugin
 	}
 
+	// migrate to dek embedded mode
+	if len(asset.Spec.EncryptedSeal) != 0 {
+		decrypted, err := asset.Unseal(context.Background(), providers)
+		if err != nil {
+			return err
+		}
+		for k, v := range decrypted {
+			if _, ok := secrets[k]; !ok {
+				secrets[k] = v
+			}
+		}
+		asset.Spec.EncryptedSeal = nil
+	}
+
 	encrypted, err := encrypt(provider, []byte(asset.Spec.SealingParams), secrets)
 	if err != nil {
 		return err
