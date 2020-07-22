@@ -62,6 +62,8 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 	if err := r.Get(ctx, req.NamespacedName, asset); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	assetVersion := checksum(asset.Spec.EncryptedData)
+
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 		Name:      asset.Name,
@@ -71,8 +73,8 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		if secret.Annotations == nil {
 			secret.Annotations = make(map[string]string)
 		}
-		if secret.Annotations[assetVersionAnnotation] == asset.ResourceVersion &&
-			secret.Annotations[dataChecksumAnnotation] == checksum(secret) {
+		if secret.Annotations[assetVersionAnnotation] == assetVersion &&
+			secret.Annotations[dataChecksumAnnotation] == checksum(secret.Data) {
 			log.Info("the target secret is latest version, skip.")
 			return nil
 		}
@@ -85,7 +87,8 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 			return err
 		}
 		// migration mode, protect existing value
-		if secret.Annotations[assetVersionAnnotation] == "" {
+		if secret.Annotations[assetVersionAnnotation] == "" ||
+			secret.Annotations[dataChecksumAnnotation] == "" {
 			for k, n := range data {
 				if o, ok := secret.Data[k]; ok && !bytes.Equal(n, o) {
 					return fmt.Errorf("migration failed: '%s' mismatch with the existing value: %w", k, status.ErrMigrate)
@@ -95,8 +98,8 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 
 		secret.Data = data
 		secret.Type = asset.Spec.Type
-		secret.Annotations[assetVersionAnnotation] = asset.ResourceVersion
-		secret.Annotations[dataChecksumAnnotation] = checksum(secret)
+		secret.Annotations[assetVersionAnnotation] = assetVersion
+		secret.Annotations[dataChecksumAnnotation] = checksum(secret.Data)
 		return nil
 	})
 
@@ -157,15 +160,15 @@ func shouldRequeue(err error) error {
 	}
 }
 
-func checksum(secret *corev1.Secret) string {
-	keys := make([]string, 0, len(secret.Data))
-	for k := range secret.Data {
+func checksum(secrets map[string][]byte) string {
+	keys := make([]string, 0, len(secrets))
+	for k := range secrets {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	checksum := crc32.NewIEEE()
 	for _, k := range keys {
-		checksum.Write(secret.Data[k])
+		checksum.Write(secrets[k])
 	}
 	return strconv.FormatUint(uint64(checksum.Sum32()), 10)
 }
