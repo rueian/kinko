@@ -56,6 +56,7 @@ type AssetStatus struct {
 // +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="PLUGIN",type=string,JSONPath=`.spec.sealingPlugin`
 // +kubebuilder:printcolumn:name="SYNCED",type=string,JSONPath=`.status.conditions[?(@.type=="Synced")].status`
+// +kubebuilder:printcolumn:name="REASON",type=string,JSONPath=`.status.conditions[?(@.type=="Synced")].reason`
 type Asset struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
