@@ -366,6 +366,7 @@ func encrypt(provider kms.Plugin, params []byte, secrets map[string][]byte) (map
 
 	for k, v := range secrets {
 		if len(v) == 0 {
+			encrypted[k] = nil
 			continue
 		}
 

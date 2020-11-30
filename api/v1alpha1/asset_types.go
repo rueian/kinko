@@ -106,12 +106,20 @@ func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Plugin) (ma
 		}
 
 		for k, v := range a.Spec.EncryptedData {
+			if len(v) == 0 {
+				data[k] = nil
+				continue
+			}
 			if data[k], err = seal.Decrypt(&detail, v); err != nil {
 				return nil, err
 			}
 		}
 	} else {
 		for k, v := range a.Spec.EncryptedData {
+			if len(v) == 0 {
+				data[k] = nil
+				continue
+			}
 			if len(v) < 2 {
 				return nil, fmt.Errorf("data '%s' too short: %w", k, status.ErrBadData)
 			}
