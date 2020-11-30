@@ -54,6 +54,7 @@ spec:
               additionalProperties:
                 format: byte
                 type: string
+                nullable: true
               type: object
             encryptedSeal:
               format: byte
