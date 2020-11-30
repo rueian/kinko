@@ -122,17 +122,18 @@ func (r *AssetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func setSyncedCondition(a *sealsv1alpha1.Asset, err error) {
 	sc := status.Condition{
 		Type:               "Synced",
-		Status:             corev1.ConditionTrue,
-		Reason:             status.ReasonSyncSuccess,
 		LastTransitionTime: metav1.Now(),
 	}
 	defer a.Status.Conditions.SetCondition(sc)
 
 	if err == nil {
+		sc.Status = corev1.ConditionTrue
+		sc.Reason = status.ReasonSyncSuccess
 		return
 	}
 
 	sc.Status = corev1.ConditionFalse
+	sc.Reason = status.ReasonUnknown
 	sc.Message = err.Error()
 	switch {
 	case errors.Is(err, status.ErrNoPlugin):
@@ -143,8 +144,6 @@ func setSyncedCondition(a *sealsv1alpha1.Asset, err error) {
 		sc.Reason = status.ReasonBadData
 	case errors.Is(err, status.ErrNoParams):
 		sc.Reason = status.ReasonNoParams
-	default:
-		sc.Reason = status.ReasonUnknown
 	}
 }
 
