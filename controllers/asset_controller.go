@@ -103,6 +103,14 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 		return nil
 	})
 
+	// erase secrets in memory
+	for k, v := range secret.Data {
+		for i := range v {
+			v[i] = 0
+		}
+		delete(secret.Data, k)
+	}
+
 	setSyncedCondition(asset, err)
 	if err := r.Status().Update(ctx, asset); err != nil {
 		log.Error(err, "fail to update status")

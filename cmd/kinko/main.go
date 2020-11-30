@@ -186,8 +186,10 @@ func Unseal(cmd *cobra.Command, args []string) error {
 		}
 
 		if err := writeYAML(writer, encoder, secret); err != nil {
+			erase(data)
 			return err
 		}
+		erase(data)
 	}
 	return nil
 }
@@ -310,6 +312,7 @@ func Patch(cmd *cobra.Command, args []string) (err error) {
 		if err != nil {
 			return err
 		}
+		defer erase(decrypted)
 		for k, v := range decrypted {
 			if _, ok := secrets[k]; !ok {
 				secrets[k] = v
@@ -414,6 +417,15 @@ func encrypt(provider kms.Plugin, params []byte, secrets map[string][]byte) (map
 		encrypted[k] = result
 	}
 	return encrypted, nil
+}
+
+func erase(data map[string][]byte) {
+	for k, v := range data {
+		for i := range v {
+			v[i] = 0
+		}
+		delete(data, k)
+	}
 }
 
 func main() {
