@@ -121,3 +121,13 @@ protoc-gen-go:
 
 proto: protoc-gen-go
 	protoc --go_out=. --go_opt=paths=source_relative ./pb/*.proto
+
+cli:
+	for os in linux darwin windows; do \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=amd64 GO111MODULE=on go build -a -o ./bin/$$os/kinko cmd/kinko/main.go; \
+	done
+
+archive-cli:
+	for os in linux darwin windows; do \
+		gzip ./bin/$$os/kinko; \
+	done
