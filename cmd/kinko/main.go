@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/rueian/kinko/status"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -59,6 +60,7 @@ var (
 	StringSecrets []string
 	Base64Secrets []string
 	DeleteSecrets []string
+	FilePath      string
 
 	scheme  = runtime.NewScheme()
 	codec   serializer.CodecFactory
@@ -80,6 +82,7 @@ func init() {
 	patchCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	patchCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
 	patchCmd.Flags().StringArrayVarP(&DeleteSecrets, "delete", "d", nil, "secrets to delete: --delete some-key")
+	patchCmd.Flags().StringVarP(&FilePath, "file", "f", "", "file path to patch: --file ./asset.yaml")
 	newCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	newCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
 	newCmd.Args = cobra.MinimumNArgs(1)
@@ -242,16 +245,33 @@ func Create(cmd *cobra.Command, args []string) error {
 	return writeYAML(writer, encoder, asset)
 }
 
-func Patch(cmd *cobra.Command, args []string) error {
+func Patch(cmd *cobra.Command, args []string) (err error) {
 	secrets, err := secretsFromCLIFlags()
 	if err != nil {
 		return err
 	}
 
-	writer := bufio.NewWriter(os.Stdout)
-	defer writer.Flush()
+	reader := io.Reader(os.Stdin)
+	writer := bytes.NewBuffer(nil)
 
-	yamls, err := readYAMLs(os.Stdin)
+	if FilePath != "" {
+		bs, err := ioutil.ReadFile(FilePath)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(bs)
+	}
+
+	defer func() {
+		if FilePath != "" {
+			err = ioutil.WriteFile(FilePath, writer.Bytes(), 0)
+			fmt.Println("patched to", FilePath)
+		} else {
+			_, err = os.Stdout.Write(writer.Bytes())
+		}
+	}()
+
+	yamls, err := readYAMLs(reader)
 	if err != nil {
 		return err
 	}
