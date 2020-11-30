@@ -58,6 +58,7 @@ var (
 	KeyID         string
 	StringSecrets []string
 	Base64Secrets []string
+	DeleteSecrets []string
 
 	scheme  = runtime.NewScheme()
 	codec   serializer.CodecFactory
@@ -78,6 +79,7 @@ func init() {
 	rootCmd.MarkFlagRequired("key")
 	patchCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	patchCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
+	patchCmd.Flags().StringArrayVarP(&DeleteSecrets, "delete", "d", nil, "secrets to delete: --delete some-key")
 	newCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	newCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
 	newCmd.Args = cobra.MinimumNArgs(1)
@@ -246,10 +248,6 @@ func Patch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if len(secrets) == 0 {
-		return nil
-	}
-
 	writer := bufio.NewWriter(os.Stdout)
 	defer writer.Flush()
 
@@ -308,9 +306,11 @@ func Patch(cmd *cobra.Command, args []string) error {
 	for k := range secrets {
 		if v, ok := encrypted[k]; ok {
 			asset.Spec.EncryptedData[k] = v
-		} else {
-			delete(asset.Spec.EncryptedData, k)
 		}
+	}
+
+	for _, v := range DeleteSecrets {
+		delete(asset.Spec.EncryptedData, v)
 	}
 
 	return writeYAML(writer, encoder, asset)
