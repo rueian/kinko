@@ -130,29 +130,27 @@ func (r *AssetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func setSyncedCondition(a *sealsv1alpha1.Asset, err error) {
 	sc := status.Condition{
 		Type:               "Synced",
+		Status:             corev1.ConditionTrue,
+		Reason:             status.ReasonSyncSuccess,
 		LastTransitionTime: metav1.Now(),
 	}
-	defer a.Status.Conditions.SetCondition(sc)
-
-	if err == nil {
-		sc.Status = corev1.ConditionTrue
-		sc.Reason = status.ReasonSyncSuccess
-		return
+	if err != nil {
+		sc.Status = corev1.ConditionFalse
+		sc.Message = err.Error()
+		switch {
+		case errors.Is(err, status.ErrNoPlugin):
+			sc.Reason = status.ReasonNoPlugin
+		case errors.Is(err, status.ErrMigrate):
+			sc.Reason = status.ReasonMigrationFailed
+		case errors.Is(err, status.ErrBadData):
+			sc.Reason = status.ReasonBadData
+		case errors.Is(err, status.ErrNoParams):
+			sc.Reason = status.ReasonNoParams
+		default:
+			sc.Reason = status.ReasonUnknown
+		}
 	}
-
-	sc.Status = corev1.ConditionFalse
-	sc.Reason = status.ReasonUnknown
-	sc.Message = err.Error()
-	switch {
-	case errors.Is(err, status.ErrNoPlugin):
-		sc.Reason = status.ReasonNoPlugin
-	case errors.Is(err, status.ErrMigrate):
-		sc.Reason = status.ReasonMigrationFailed
-	case errors.Is(err, status.ErrBadData):
-		sc.Reason = status.ReasonBadData
-	case errors.Is(err, status.ErrNoParams):
-		sc.Reason = status.ReasonNoParams
-	}
+	a.Status.Conditions.SetCondition(sc)
 }
 
 func shouldRequeue(err error) error {
