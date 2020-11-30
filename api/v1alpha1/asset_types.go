@@ -96,11 +96,13 @@ func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Plugin) (ma
 
 	if len(a.Spec.EncryptedSeal) != 0 {
 		bs, err := plugin.Decrypt(ctx, []byte(a.Spec.SealingParams), a.Spec.EncryptedSeal)
+		defer erase(bs)
 		if err != nil {
 			return nil, err
 		}
 
 		detail := pb.Seal{}
+		defer erase(detail.Dek)
 		if err := proto.Unmarshal(bs, &detail); err != nil {
 			return nil, fmt.Errorf("fail to unmarshal EncryptedSeal: %w", status.ErrBadData)
 		}
@@ -137,14 +139,23 @@ func (a *Asset) Unseal(ctx context.Context, providers map[string]kms.Plugin) (ma
 
 			detail := pb.Seal{}
 			if err := proto.Unmarshal(bs, &detail); err != nil {
+				erase(bs)
 				return nil, fmt.Errorf("fail to unmarshal EncryptedSeal: %w", status.ErrBadData)
 			}
-
+			erase(bs)
 			if data[k], err = seal.Decrypt(&detail, encv); err != nil {
+				erase(detail.Dek)
 				return nil, err
 			}
+			erase(detail.Dek)
 		}
 	}
 
 	return data, nil
+}
+
+func erase(v []byte) {
+	for i := range v {
+		v[i] = 0
+	}
 }

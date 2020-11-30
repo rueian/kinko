@@ -415,16 +415,23 @@ func encrypt(provider kms.Plugin, params []byte, secrets map[string][]byte) (map
 		copy(result[2:2+len(dekv)], dekv)
 		copy(result[2+len(dekv):], encv)
 		encrypted[k] = result
+
+		erases(bs)
+		erases(detail.Dek)
 	}
 	return encrypted, nil
 }
 
 func erase(data map[string][]byte) {
 	for k, v := range data {
-		for i := range v {
-			v[i] = 0
-		}
+		erases(v)
 		delete(data, k)
+	}
+}
+
+func erases(v []byte) {
+	for i := range v {
+		v[i] = 0
 	}
 }
 
