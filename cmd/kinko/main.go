@@ -363,7 +363,7 @@ func promptSecretInput(label string, processInput func(string) ([]byte, error)) 
 	var input string
 	for {
 		fmt.Fprint(os.Stderr, label+" ")
-		read, err := term.ReadPassword(syscall.Stdin)
+		read, err := term.ReadPassword(int(syscall.Stdin))
 		if err != nil {
 			return nil, err
 		}
