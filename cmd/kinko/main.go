@@ -10,12 +10,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rueian/kinko/status"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
+	"syscall"
+
+	"github.com/rueian/kinko/status"
+	"golang.org/x/term"
+	"google.golang.org/protobuf/proto"
 
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
 	"github.com/rueian/kinko/kms"
@@ -356,25 +359,54 @@ func readYAMLs(reader io.Reader) ([][]byte, error) {
 	return bytes.Split(bs, []byte("\n---")), nil
 }
 
+func promptSecretInput(label string, processInput func(string) ([]byte, error)) ([]byte, error) {
+	var input string
+	for {
+		fmt.Fprint(os.Stderr, label+" ")
+		read, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return nil, err
+		}
+		input = string(read)
+		if input != "" {
+			break
+		}
+	}
+	v, err := processInput(input)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println()
+	return v, nil
+}
+
 func secretsFromCLIFlags() (map[string][]byte, error) {
 	secrets := make(map[string][]byte)
 
 	for _, v := range StringSecrets {
-		parts := strings.SplitN(v, "=", 2)
-		if len(parts) == 2 {
-			secrets[parts[0]] = []byte(parts[1])
+		secret, err := promptSecretInput(
+			fmt.Sprintf("Enter secret: %s", v),
+			func(s string) ([]byte, error) { return []byte(s), nil },
+		)
+
+		if err != nil {
+			return nil, err
 		}
+		secrets[v] = secret
 	}
 
 	for _, v := range Base64Secrets {
-		parts := strings.SplitN(v, "=", 2)
-		if len(parts) == 2 {
-			v, err := base64.StdEncoding.DecodeString(parts[1])
-			if err != nil {
-				return nil, err
-			}
-			secrets[parts[0]] = v
+		secret, err := promptSecretInput(
+			fmt.Sprintf("Enter base64 secret: %s", v),
+			func(s string) ([]byte, error) {
+				return base64.StdEncoding.DecodeString(s)
+			},
+		)
+
+		if err != nil {
+			return nil, err
 		}
+		secrets[v] = secret
 	}
 	return secrets, nil
 }
