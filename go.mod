@@ -13,7 +13,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	go.opencensus.io v0.22.4 // indirect
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
-	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae // indirect
+	golang.org/x/term v0.1.0
 	golang.org/x/text v0.3.3 // indirect
 	google.golang.org/api v0.29.0 // indirect
 	google.golang.org/genproto v0.0.0-20200711021454-869866162049
