@@ -33,6 +33,9 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 )
 
+// Version can be set the version info from the -ldflags when building
+var Version string
+
 var (
 	rootCmd = &cobra.Command{
 		Use:   "kinko",
@@ -58,6 +61,14 @@ var (
 		Short: "patch kinko sealed assets yaml from CLI flags",
 		RunE:  Patch,
 	}
+	versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "print the version number of kinko",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			_, err := os.Stdout.Write([]byte("kinko " + Version))
+			return err
+		},
+	}
 
 	KeyID         string
 	StringSecrets []string
@@ -76,16 +87,18 @@ func init() {
 	codec = serializer.NewCodecFactory(scheme)
 	decoder = codec.UniversalDeserializer()
 
-	rootCmd.AddCommand(sealCmd)
-	rootCmd.AddCommand(unsealCmd)
-	rootCmd.AddCommand(newCmd)
-	rootCmd.AddCommand(patchCmd)
-	rootCmd.PersistentFlags().StringVarP(&KeyID, "key", "k", "", "the asymmetric key id of kms")
-	rootCmd.MarkFlagRequired("key")
+	rootCmd.AddCommand(versionCmd)
+	for _, cmd := range []*cobra.Command{sealCmd, unsealCmd, newCmd, patchCmd} {
+		cmd.Flags().StringVarP(&KeyID, "key", "k", "", "the asymmetric key id of kms")
+		_ = cmd.MarkFlagRequired("key")
+		rootCmd.AddCommand(cmd)
+	}
+
 	patchCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	patchCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
 	patchCmd.Flags().StringArrayVarP(&DeleteSecrets, "delete", "d", nil, "secrets to delete: --delete some-key")
 	patchCmd.Flags().StringVarP(&FilePath, "file", "f", "", "file path to patch: --file ./asset.yaml")
+
 	newCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	newCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
 	newCmd.Args = cobra.MinimumNArgs(1)

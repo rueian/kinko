@@ -9,6 +9,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    ldflags:
+      - -X main.Version={{.Tag}}
 archives:
   - replacements:
       darwin: Darwin

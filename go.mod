@@ -20,6 +20,7 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/spf13/cobra v1.4.0
 	golang.org/x/oauth2 v0.1.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
 	golang.org/x/term v0.1.0
 	golang.org/x/time v0.1.0 // indirect
 	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c
