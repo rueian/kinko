@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"syscall"
@@ -88,7 +87,8 @@ func init() {
 	decoder = codec.UniversalDeserializer()
 
 	rootCmd.AddCommand(versionCmd)
-	for _, cmd := range []*cobra.Command{sealCmd, unsealCmd, newCmd, patchCmd} {
+	rootCmd.AddCommand(patchCmd)
+	for _, cmd := range []*cobra.Command{sealCmd, unsealCmd, newCmd} {
 		cmd.Flags().StringVarP(&KeyID, "key", "k", "", "the asymmetric key id of kms")
 		_ = cmd.MarkFlagRequired("key")
 		rootCmd.AddCommand(cmd)
@@ -273,7 +273,7 @@ func Patch(cmd *cobra.Command, args []string) (err error) {
 	writer := bytes.NewBuffer(nil)
 
 	if FilePath != "" {
-		bs, err := ioutil.ReadFile(FilePath)
+		bs, err := os.ReadFile(FilePath)
 		if err != nil {
 			return err
 		}
@@ -281,8 +281,12 @@ func Patch(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	defer func() {
+		if err != nil {
+			return
+		}
+
 		if FilePath != "" {
-			err = ioutil.WriteFile(FilePath, writer.Bytes(), 0)
+			err = os.WriteFile(FilePath, writer.Bytes(), 0)
 			fmt.Println("patched to", FilePath)
 		} else {
 			_, err = os.Stdout.Write(writer.Bytes())
@@ -365,7 +369,7 @@ func writeYAML(writer io.Writer, encoder runtime.Encoder, obj runtime.Object) (e
 }
 
 func readYAMLs(reader io.Reader) ([][]byte, error) {
-	bs, err := ioutil.ReadAll(reader)
+	bs, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}
