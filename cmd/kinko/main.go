@@ -88,6 +88,7 @@ func init() {
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(patchCmd)
+	rootCmd.AddCommand(unsealCmd)
 	for _, cmd := range []*cobra.Command{sealCmd, newCmd} {
 		cmd.Flags().StringVarP(&KeyID, "key", "k", "", "the asymmetric key id of kms")
 		_ = cmd.MarkFlagRequired("key")
