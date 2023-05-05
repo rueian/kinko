@@ -15,15 +15,14 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/rueian/kinko/status"
-	"golang.org/x/term"
-	"google.golang.org/protobuf/proto"
-
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
 	"github.com/rueian/kinko/kms"
 	"github.com/rueian/kinko/pb"
 	"github.com/rueian/kinko/seal"
+	"github.com/rueian/kinko/status"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
+	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -72,6 +71,7 @@ var (
 	KeyID         string
 	StringSecrets []string
 	Base64Secrets []string
+	BlobSecrets   []string
 	DeleteSecrets []string
 	FilePath      string
 
@@ -97,11 +97,13 @@ func init() {
 
 	patchCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	patchCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
+	patchCmd.Flags().StringArrayVarP(&BlobSecrets, "blob", "", nil, "blob values to seal: --blob key=path/to/file")
 	patchCmd.Flags().StringArrayVarP(&DeleteSecrets, "delete", "d", nil, "secrets to delete: --delete some-key")
 	patchCmd.Flags().StringVarP(&FilePath, "file", "f", "", "file path to patch: --file ./asset.yaml")
 
 	newCmd.Flags().StringArrayVarP(&StringSecrets, "string", "s", nil, "string values to seal: --string key=value")
 	newCmd.Flags().StringArrayVarP(&Base64Secrets, "base64", "b", nil, "base64 values to seal: --base64 key=dmFsdWU=")
+	newCmd.Flags().StringArrayVarP(&BlobSecrets, "blob", "", nil, "blob values to seal: --blob key=path/to/file")
 	newCmd.Args = cobra.MinimumNArgs(1)
 }
 
@@ -426,6 +428,24 @@ func secretsFromCLIFlags() (map[string][]byte, error) {
 		}
 		secrets[v] = secret
 	}
+
+	for _, v := range BlobSecrets {
+		substrings := strings.SplitN(v, "=", 2)
+		if len(substrings) < 2 {
+			return nil, fmt.Errorf("invalid blob secret format: %s", v)
+		}
+
+		key := substrings[0]
+		path := substrings[1]
+
+		secret, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+
+		secrets[key] = secret
+	}
+
 	return secrets, nil
 }
 
