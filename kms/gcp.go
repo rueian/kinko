@@ -19,6 +19,7 @@ import (
 	gcpkmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 type GCPParams struct {
@@ -26,11 +27,11 @@ type GCPParams struct {
 	Asymmetric bool   `json:"asymmetric"`
 }
 
-func (p *GCPParams) Validate() error {
+func (p *GCPParams) Validate() (admission.Warnings, error) {
 	if p.KeyID == "" {
-		return errors.New("keyId should not be empty")
+		return nil, errors.New("keyId should not be empty")
 	}
-	return nil
+	return nil, nil
 }
 
 func NewGCP(ctx context.Context) (*GCP, error) {

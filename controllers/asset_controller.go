@@ -44,19 +44,31 @@ var (
 // AssetReconciler reconciles a Asset object
 type AssetReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	log    logr.Logger
+	scheme *runtime.Scheme
 
-	Plugins map[string]kms.Plugin
+	plugins map[string]kms.Plugin
+}
+
+func NewAssetReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, plugins map[string]kms.Plugin) *AssetReconciler {
+	return &AssetReconciler{
+		Client:  client,
+		log:     log,
+		scheme:  scheme,
+		plugins: plugins,
+	}
+}
+
+func (r *AssetReconciler) Scheme() *runtime.Scheme {
+	return r.scheme
 }
 
 // +kubebuilder:rbac:groups=seals.kinko.dev,resources=assets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=seals.kinko.dev,resources=assets/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
-func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err error) {
-	ctx := context.Background()
-	log := r.Log.WithValues("asset", req.NamespacedName)
+func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
+	log := r.log.WithValues("asset", req.NamespacedName)
 	// get the asset
 	asset := &sealsv1alpha1.Asset{}
 	if err := r.Get(ctx, req.NamespacedName, asset); err != nil {
@@ -78,11 +90,11 @@ func (r *AssetReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, err erro
 			log.Info("the target secret is latest version, skip.")
 			return nil
 		}
-		if err := ctrl.SetControllerReference(asset, secret, r.Scheme); err != nil {
+		if err := ctrl.SetControllerReference(asset, secret, r.Scheme()); err != nil {
 			return err
 		}
 
-		data, err := asset.Unseal(ctx, r.Plugins)
+		data, err := asset.Unseal(ctx, r.plugins)
 		if err != nil {
 			return err
 		}

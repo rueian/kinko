@@ -29,6 +29,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
 	"github.com/rueian/kinko/controllers"
@@ -59,11 +61,15 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		Port:               9443,
-		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "83be0f29.kinko.dev",
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: metricsAddr,
+		},
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port: 9443,
+		}),
+		LeaderElection:   enableLeaderElection,
+		LeaderElectionID: "83be0f29.kinko.dev",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -72,12 +78,12 @@ func main() {
 
 	providers, err := kms.Providers(context.Background())
 
-	if err = (&controllers.AssetReconciler{
-		Client:  mgr.GetClient(),
-		Log:     ctrl.Log.WithName("controllers").WithName("Asset"),
-		Scheme:  mgr.GetScheme(),
-		Plugins: providers,
-	}).SetupWithManager(mgr); err != nil {
+	if err = (controllers.NewAssetReconciler(
+		mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("Asset"),
+		mgr.GetScheme(),
+		providers,
+	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Asset")
 		os.Exit(1)
 	}
