@@ -76,7 +76,15 @@ func (r *Asset) ValidateCreate() (admission.Warnings, error) {
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *Asset) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	assetlog.Info("validate update", "name", r.Name)
-	return r.Validate()
+
+	warngins := admission.Warnings{}
+	if string(old.(*Asset).Spec.Type) != string(r.Spec.Type) {
+		warngins = append(warngins, "spec.type of a secret is immutable, delete the secret manually to get change affected")
+	}
+	w, err := r.Validate()
+	warngins = append(warngins, w...)
+
+	return warngins, err
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type

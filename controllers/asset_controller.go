@@ -27,9 +27,11 @@ import (
 
 	"github.com/go-logr/logr"
 	sealsv1alpha1 "github.com/rueian/kinko/api/v1alpha1"
+
 	"github.com/rueian/kinko/kms"
 	"github.com/rueian/kinko/status"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -74,7 +76,12 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 	if err := r.Get(ctx, req.NamespacedName, asset); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	assetVersion := checksum(asset.Spec.EncryptedData)
+	assetVersion := checksum(mergeMap(
+		stringMapToByteMap(asset.Annotations),
+		stringMapToByteMap(asset.Labels),
+		map[string][]byte{"type": []byte(asset.Spec.Type)},
+		asset.Spec.EncryptedData,
+	))
 
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
@@ -85,6 +92,7 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 		if secret.Annotations == nil {
 			secret.Annotations = make(map[string]string)
 		}
+
 		if secret.Annotations[assetVersionAnnotation] == assetVersion &&
 			secret.Annotations[dataChecksumAnnotation] == checksum(secret.Data) {
 			log.Info("the target secret is latest version, skip.")
@@ -108,10 +116,21 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 			}
 		}
 
+		if asset.Spec.Type == "" {
+			asset.Spec.Type = corev1.SecretTypeOpaque
+		}
+
+		if secret.Type != "" && secret.Type != asset.Spec.Type {
+			log.Info("trying to update immutable field", "field", "type", "old", secret.Type, "new", asset.Spec.Type)
+			return fmt.Errorf("%w: type", status.ErrImmutable)
+		}
+
 		secret.Data = data
 		secret.Type = asset.Spec.Type
+		secret.Annotations = asset.Annotations
 		secret.Annotations[assetVersionAnnotation] = assetVersion
 		secret.Annotations[dataChecksumAnnotation] = checksum(secret.Data)
+		secret.Labels = asset.Labels
 		return nil
 	})
 
@@ -125,6 +144,14 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 
 	setSyncedCondition(asset, err)
 	if err := r.Status().Update(ctx, asset); err != nil {
+		if apierrors.IsConflict(err) {
+			statusErr := &apierrors.StatusError{}
+			if ok := errors.As(err, &statusErr); ok {
+				log.Info(statusErr.ErrStatus.Message + ", retry")
+				return ctrl.Result{}, err
+			}
+		}
+
 		log.Error(err, "fail to update status")
 		return ctrl.Result{}, err
 	}
@@ -158,6 +185,8 @@ func setSyncedCondition(a *sealsv1alpha1.Asset, err error) {
 			sc.Reason = status.ReasonBadData
 		case errors.Is(err, status.ErrNoParams):
 			sc.Reason = status.ReasonNoParams
+		case errors.Is(err, status.ErrImmutable):
+			sc.Reason = status.ReasonImmutable
 		default:
 			sc.Reason = status.ReasonUnknown
 		}
@@ -170,11 +199,31 @@ func shouldRequeue(err error) error {
 	case errors.Is(err, status.ErrNoPlugin),
 		errors.Is(err, status.ErrMigrate),
 		errors.Is(err, status.ErrBadData),
-		errors.Is(err, status.ErrNoParams):
+		errors.Is(err, status.ErrNoParams),
+		errors.Is(err, status.ErrImmutable):
 		return nil
 	default:
 		return err
 	}
+}
+
+func stringMapToByteMap(m map[string]string) map[string][]byte {
+	res := make(map[string][]byte)
+	for k, v := range m {
+		res[k] = []byte(v)
+	}
+	return res
+}
+
+func mergeMap(maps ...map[string][]byte) map[string][]byte {
+	res := make(map[string][]byte)
+	for _, m := range maps {
+		for k, v := range m {
+			res[k] = v
+		}
+
+	}
+	return res
 }
 
 func checksum(secrets map[string][]byte) string {
