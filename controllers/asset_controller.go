@@ -109,6 +109,10 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 		// migration mode, protect existing value
 		if secret.Annotations[assetVersionAnnotation] == "" ||
 			secret.Annotations[dataChecksumAnnotation] == "" {
+			if secret.Type != "" && secret.Type != asset.Spec.Type {
+				return fmt.Errorf("migration failed: spec.type mismatch with the existing value: %w", status.ErrMigrate)
+			}
+
 			for k, n := range data {
 				if o, ok := secret.Data[k]; ok && !bytes.Equal(n, o) {
 					return fmt.Errorf("migration failed: '%s' mismatch with the existing value: %w", k, status.ErrMigrate)
@@ -154,6 +158,17 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 
 		log.Error(err, "fail to update status")
 		return ctrl.Result{}, err
+	}
+
+	if errors.Is(err, status.ErrImmutable) {
+		log.Info("immutable field changed, delete secret for re-sync")
+
+		if err := r.Delete(ctx, secret); err != nil {
+			log.Error(err, "fail to delete secret for re-sync")
+			return ctrl.Result{}, nil
+		}
+
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	return ctrl.Result{}, shouldRequeue(err)
