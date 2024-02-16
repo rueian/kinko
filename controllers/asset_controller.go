@@ -76,12 +76,12 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 	if err := r.Get(ctx, req.NamespacedName, asset); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	assetVersion := checksum(mergeMap(
+	assetVersion := checksum(
 		stringMapToByteMap(asset.Annotations),
 		stringMapToByteMap(asset.Labels),
 		map[string][]byte{"type": []byte(asset.Spec.Type)},
 		asset.Spec.EncryptedData,
-	))
+	)
 
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
@@ -230,26 +230,22 @@ func stringMapToByteMap(m map[string]string) map[string][]byte {
 	return res
 }
 
-func mergeMap(maps ...map[string][]byte) map[string][]byte {
-	res := make(map[string][]byte)
+func checksum(maps ...map[string][]byte) string {
+	checksum := crc32.NewIEEE()
+
 	for _, m := range maps {
-		for k, v := range m {
-			res[k] = v
+		keys := make([]string, 0, len(m))
+
+		for k := range m {
+			keys = append(keys, k)
 		}
 
-	}
-	return res
-}
+		sort.Strings(keys)
 
-func checksum(secrets map[string][]byte) string {
-	keys := make([]string, 0, len(secrets))
-	for k := range secrets {
-		keys = append(keys, k)
+		for _, k := range keys {
+			checksum.Write(m[k])
+		}
 	}
-	sort.Strings(keys)
-	checksum := crc32.NewIEEE()
-	for _, k := range keys {
-		checksum.Write(secrets[k])
-	}
+
 	return strconv.FormatUint(uint64(checksum.Sum32()), 10)
 }
