@@ -19,10 +19,10 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"sort"
 	"strconv"
 
 	"github.com/go-logr/logr"
@@ -77,10 +77,16 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	assetVersion := checksum(
-		stringMapToByteMap(asset.Annotations),
-		stringMapToByteMap(asset.Labels),
-		map[string][]byte{"type": []byte(asset.Spec.Type)},
-		asset.Spec.EncryptedData,
+		&sealsv1alpha1.Asset{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: asset.Annotations,
+				Labels:      asset.Labels,
+			},
+			Spec: sealsv1alpha1.AssetSpec{
+				Type:          asset.Spec.Type,
+				EncryptedData: asset.Spec.EncryptedData,
+			},
+		},
 	)
 
 	// get the corresponding secret, should be 1 to 1 matching by the NamespacedName
@@ -94,7 +100,7 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 		}
 
 		if secret.Annotations[assetVersionAnnotation] == assetVersion &&
-			secret.Annotations[dataChecksumAnnotation] == checksum(secret.Data) {
+			secret.Annotations[dataChecksumAnnotation] == checksum(&corev1.Secret{Data: secret.Data}) {
 			log.Info("the target secret is latest version, skip.")
 			return nil
 		}
@@ -133,7 +139,7 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 		secret.Type = asset.Spec.Type
 		secret.Annotations = asset.Annotations
 		secret.Annotations[assetVersionAnnotation] = assetVersion
-		secret.Annotations[dataChecksumAnnotation] = checksum(secret.Data)
+		secret.Annotations[dataChecksumAnnotation] = checksum(&corev1.Secret{Data: secret.Data})
 		secret.Labels = asset.Labels
 		return nil
 	})
@@ -222,30 +228,8 @@ func shouldRequeue(err error) error {
 	}
 }
 
-func stringMapToByteMap(m map[string]string) map[string][]byte {
-	res := make(map[string][]byte)
-	for k, v := range m {
-		res[k] = []byte(v)
-	}
-	return res
-}
+func checksum(obj client.Object) string {
+	b, _ := json.Marshal(obj)
 
-func checksum(maps ...map[string][]byte) string {
-	checksum := crc32.NewIEEE()
-
-	for _, m := range maps {
-		keys := make([]string, 0, len(m))
-
-		for k := range m {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-
-		for _, k := range keys {
-			checksum.Write(m[k])
-		}
-	}
-
-	return strconv.FormatUint(uint64(checksum.Sum32()), 10)
+	return strconv.FormatUint(uint64(crc32.ChecksumIEEE(b)), 10)
 }
