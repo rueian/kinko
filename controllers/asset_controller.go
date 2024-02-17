@@ -177,6 +177,7 @@ func (r *AssetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res 
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	log.Info("successfully reconciled")
 	return ctrl.Result{}, shouldRequeue(err)
 }
 
