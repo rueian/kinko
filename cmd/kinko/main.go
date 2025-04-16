@@ -141,8 +141,10 @@ func Seal(cmd *cobra.Command, args []string) error {
 
 		asset := &sealsv1alpha1.Asset{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      secret.Name,
-				Namespace: secret.Namespace,
+				Name:        secret.Name,
+				Namespace:   secret.Namespace,
+				Labels:      secret.Labels,
+				Annotations: secret.Annotations,
 			},
 			Spec: sealsv1alpha1.AssetSpec{
 				Type:          secret.Type,
